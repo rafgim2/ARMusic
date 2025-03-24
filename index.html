@@ -229,7 +229,7 @@
           const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
           questionImageMesh = new THREE.Mesh(geometry, material);
           // Ubicamos la imagen en la parte inferior (y = -0.3)
-          questionImageMesh.position.set(0, 0.3, -0.76);
+          questionImageMesh.position.set(0, 0.2, -0.76);
           scene.add(questionImageMesh);
         });
       }
@@ -265,7 +265,8 @@
         texture.magFilter = THREE.LinearFilter;
         
         // Escala basada en un canvas de referencia
-        const scaleFactor = 0.15 / (256 * resolutionFactor);
+        const scaleFactor = (0.15 * 2) / (256 * resolutionFactor);
+
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
         
