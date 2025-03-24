@@ -225,7 +225,7 @@
           
           const roundedTexture = new THREE.CanvasTexture(canvas);
           // Geometría más pequeña para la imagen
-          const geometry = new THREE.PlaneGeometry(0.3, 0.3);
+          const geometry = new THREE.PlaneGeometry(0.2, 0.2);
           const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
           questionImageMesh = new THREE.Mesh(geometry, material);
           // Ubicamos la imagen en la parte inferior (y = -0.3)
