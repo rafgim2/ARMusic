@@ -57,19 +57,13 @@
     <!-- Audios -->
     <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/acierto.wav" preload="auto"></audio>
     <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
-    
     <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/timer7.mp3" preload="auto"></audio>
-   
     
     <script type="module">
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
-      /* 
-        Array de notas musicales.
-        Cada objeto tiene la propiedad 'note' (el nombre de la nota)
-        y 'image' (el nombre del archivo de imagen en el raw).
-      */
+      // Array de notas musicales.
       const notes = [
         { note: "DO", image: "DO.png" },
         { note: "RE", image: "RE.png" },
@@ -174,7 +168,7 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Escala la geometría en base a una referencia (por ejemplo, 512x128 -> 0.6 x 0.15)
+        // Escala la geometría según referencia
         const scaleX = 0.6 / (512 * resolutionFactor);
         const scaleY = 0.15 / (128 * resolutionFactor);
         const newWidth = canvas.width * scaleX;
@@ -189,29 +183,53 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
-          // Posicionar el texto algo arriba (por ejemplo, en y = 0.5)
-          questionMesh.position.set(0, 0.5, -0.8);
+          // Ubicamos la pregunta en el centro (y = 0.3)
+          questionMesh.position.set(0, 0.3, -0.8);
           scene.add(questionMesh);
         }
       }
 
       // Crea y muestra la imagen de la pregunta usando la nota seleccionada
       function updateQuestionImage() {
-        // Elimina la imagen anterior, si existe
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
           questionImageMesh = null;
         }
         const loader = new THREE.TextureLoader();
-        // Asumimos que las imágenes están en el mismo raw (en este ejemplo, en ARMultimusic/main/)
         const baseURL = "https://raw.githubusercontent.com/rafgim2/ARMusic/main/";
         loader.load(baseURL + questionNoteImage, function(texture) {
-          // Definimos la geometría para la imagen (ajusta estos valores según lo necesites)
-          const geometry = new THREE.PlaneGeometry(0.5, 0.3);
-          const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+          // Creamos un canvas para recortar la imagen con esquinas redondeadas
+          const canvas = document.createElement('canvas');
+          const canvasWidth = 256;
+          const canvasHeight = 256;
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+          const ctx = canvas.getContext('2d');
+          const radius = 20;
+          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(radius, 0);
+          ctx.lineTo(canvasWidth - radius, 0);
+          ctx.quadraticCurveTo(canvasWidth, 0, canvasWidth, radius);
+          ctx.lineTo(canvasWidth, canvasHeight - radius);
+          ctx.quadraticCurveTo(canvasWidth, canvasHeight, canvasWidth - radius, canvasHeight);
+          ctx.lineTo(radius, canvasHeight);
+          ctx.quadraticCurveTo(0, canvasHeight, 0, canvasHeight - radius);
+          ctx.lineTo(0, radius);
+          ctx.quadraticCurveTo(0, 0, radius, 0);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(texture.image, 0, 0, canvasWidth, canvasHeight);
+          ctx.restore();
+          
+          const roundedTexture = new THREE.CanvasTexture(canvas);
+          // Geometría más pequeña para la imagen
+          const geometry = new THREE.PlaneGeometry(0.3, 0.3);
+          const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
           questionImageMesh = new THREE.Mesh(geometry, material);
-          // Posicionamos la imagen debajo del panel de texto (por ejemplo, en y = 0)
-          questionImageMesh.position.set(0, 0, -0.8);
+          // Ubicamos la imagen en la parte inferior (y = -0.3)
+          questionImageMesh.position.set(0, -0.3, -0.8);
           scene.add(questionImageMesh);
         });
       }
@@ -246,7 +264,7 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Para las respuestas usamos una escala basada en un canvas de referencia (256x256 => 0.15 x 0.15)
+        // Escala basada en un canvas de referencia
         const scaleFactor = 0.15 / (256 * resolutionFactor);
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
@@ -335,8 +353,9 @@
         countdownTexture.magFilter = THREE.LinearFilter;
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: countdownTexture, transparent: true });
+        // Ubicamos la cuenta atrás en la parte superior (y = 0.7)
         countdownMesh = new THREE.Mesh(geometry, material);
-        countdownMesh.position.set(0, 0.50, -0.82);
+        countdownMesh.position.set(0, 0.7, -0.8);
         scene.add(countdownMesh);
       }
 
