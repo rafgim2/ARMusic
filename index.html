@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <title>AR Capitals Game</title>
+    <title>AR Notas Musicales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
       body { margin: 0; overflow: hidden; font-family: sans-serif; }
@@ -14,7 +14,7 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: #fffa9c;
+        background-color: #FFFFE0; /* amarillo claro */
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
@@ -30,7 +30,6 @@
         color: blue;
         text-decoration: none;
       }
-      /* Contenedor para el selector de respuestas */
       #overlay .respuestas-container {
         display: flex;
         align-items: center;
@@ -43,7 +42,6 @@
       #overlay .respuestas-container select {
         font-size: 14px;
       }
-      /* Estilos responsivos para la imagen */
       #overlay img {
         border-radius: 20px;
         max-width: 15%;
@@ -57,225 +55,66 @@
   </head>
   <body>
     <!-- Audios -->
-    <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARCapitals/main/acierto.wav" preload="auto"></audio>
-    <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARCapitals/main/error.wav" preload="auto"></audio>
+    <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/acierto.wav" preload="auto"></audio>
+    <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
     
-    <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARCapitals/main/timer7.mp3" preload="auto"></audio>
+    <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/timer7.mp3" preload="auto"></audio>
+   
     
-
     <script type="module">
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
-      // Array de países y capitales
-      const countries = [
-        { country: "Afganistán", capital: "Kabul" },
-        { country: "Albania", capital: "Tirana" },
-        { country: "Argelia", capital: "Argel" },
-        { country: "Andorra", capital: "Andorra la Vieja" },
-        { country: "Angola", capital: "Luanda" },
-        { country: "Antigua y Barbuda", capital: "Saint John's" },
-        { country: "Argentina", capital: "Buenos Aires" },
-        { country: "Armenia", capital: "Ereván" },
-        { country: "Australia", capital: "Camberra" },
-        { country: "Austria", capital: "Viena" },
-        { country: "Azerbaiyán", capital: "Bakú" },
-        { country: "Bahamas", capital: "Nasáu" },
-        { country: "Baréin", capital: "Manama" },
-        { country: "Bangladés", capital: "Daca" },
-        { country: "Barbados", capital: "Bridgetown" },
-        { country: "Bielorrusia", capital: "Minsk" },
-        { country: "Bélgica", capital: "Bruselas" },
-        { country: "Belice", capital: "Belmopán" },
-        { country: "Benín", capital: "Porto Novo" },
-        { country: "Bután", capital: "Thimphu" },
-        { country: "Bolivia", capital: "Sucre" },
-        { country: "Bosnia y Herzegovina", capital: "Sarajevo" },
-        { country: "Botsuana", capital: "Gaborone" },
-        { country: "Brasil", capital: "Brasilia" },
-        { country: "Brunéi", capital: "Bandar Seri Begawan" },
-        { country: "Bulgaria", capital: "Sofía" },
-        { country: "Burkina Faso", capital: "Uagadugú" },
-        { country: "Burundi", capital: "Gitega" },
-        { country: "Cabo Verde", capital: "Praia" },
-        { country: "Camboya", capital: "Nom Pen" },
-        { country: "Camerún", capital: "Yaundé" },
-        { country: "Canadá", capital: "Ottawa" },
-        { country: "República Centroafricana", capital: "Bangui" },
-        { country: "Chad", capital: "Yamena" },
-        { country: "Chile", capital: "Santiago" },
-        { country: "China", capital: "Pekín" },
-        { country: "Colombia", capital: "Bogotá" },
-        { country: "Comoras", capital: "Moroni" },
-        { country: "Congo (Brazzaville)", capital: "Brazzaville" },
-        { country: "Congo (Kinshasa)", capital: "Kinsasa" },
-        { country: "Costa Rica", capital: "San José" },
-        { country: "Costa de Marfil", capital: "Yamusukro" },
-        { country: "Croacia", capital: "Zagreb" },
-        { country: "Cuba", capital: "La Habana" },
-        { country: "Chipre", capital: "Nicosia" },
-        { country: "República Checa", capital: "Praga" },
-        { country: "Dinamarca", capital: "Copenhague" },
-        { country: "Yibuti", capital: "Yibuti" },
-        { country: "Dominica", capital: "Roseau" },
-        { country: "República Dominicana", capital: "Santo Domingo" },
-        { country: "Ecuador", capital: "Quito" },
-        { country: "Egipto", capital: "El Cairo" },
-        { country: "El Salvador", capital: "San Salvador" },
-        { country: "Guinea Ecuatorial", capital: "Malabo" },
-        { country: "Eritrea", capital: "Asmara" },
-        { country: "Estonia", capital: "Tallin" },
-        { country: "Esuatini", capital: "Mbabane" },
-        { country: "Etiopía", capital: "Adís Abeba" },
-        { country: "Fiyi", capital: "Suva" },
-        { country: "Finlandia", capital: "Helsinki" },
-        { country: "Francia", capital: "París" },
-        { country: "Gabón", capital: "Libreville" },
-        { country: "Gambia", capital: "Banjul" },
-        { country: "Georgia", capital: "Tiflis" },
-        { country: "Alemania", capital: "Berlín" },
-        { country: "Ghana", capital: "Acra" },
-        { country: "Grecia", capital: "Atenas" },
-        { country: "Granada", capital: "Saint George's" },
-        { country: "Guatemala", capital: "Ciudad de Guatemala" },
-        { country: "Guinea", capital: "Conakri" },
-        { country: "Guinea-Bisáu", capital: "Bisáu" },
-        { country: "Guyana", capital: "Georgetown" },
-        { country: "Haití", capital: "Puerto Príncipe" },
-        { country: "Honduras", capital: "Tegucigalpa" },
-        { country: "Hungría", capital: "Budapest" },
-        { country: "Islandia", capital: "Reikiavik" },
-        { country: "India", capital: "Nueva Delhi" },
-        { country: "Indonesia", capital: "Yakarta" },
-        { country: "Irán", capital: "Teherán" },
-        { country: "Irak", capital: "Bagdad" },
-        { country: "Irlanda", capital: "Dublín" },
-        { country: "Israel", capital: "Jerusalén" },
-        { country: "Italia", capital: "Roma" },
-        { country: "Jamaica", capital: "Kingston" },
-        { country: "Japón", capital: "Tokio" },
-        { country: "Jordania", capital: "Amán" },
-        { country: "Kazajistán", capital: "Astaná" },
-        { country: "Kenia", capital: "Nairobi" },
-        { country: "Kiribati", capital: "Tarawa" },
-        { country: "Corea del Norte", capital: "Pyongyang" },
-        { country: "Corea del Sur", capital: "Seúl" },
-        { country: "Kosovo", capital: "Pristina" },
-        { country: "Kuwait", capital: "Kuwait" },
-        { country: "Kirguistán", capital: "Biskek" },
-        { country: "Laos", capital: "Vientián" },
-        { country: "Letonia", capital: "Riga" },
-        { country: "Líbano", capital: "Beirut" },
-        { country: "Lesoto", capital: "Maseru" },
-        { country: "Liberia", capital: "Monrovia" },
-        { country: "Libia", capital: "Trípoli" },
-        { country: "Liechtenstein", capital: "Vaduz" },
-        { country: "Lituania", capital: "Vilna" },
-        { country: "Luxemburgo", capital: "Luxemburgo" },
-        { country: "Madagascar", capital: "Antananarivo" },
-        { country: "Malaui", capital: "Lilongüe" },
-        { country: "Malasia", capital: "Kuala Lumpur" },
-        { country: "Maldivas", capital: "Malé" },
-        { country: "Malí", capital: "Bamako" },
-        { country: "Malta", capital: "La Valeta" },
-        { country: "Islas Marshall", capital: "Majuro" },
-        { country: "Mauritania", capital: "Nuakchot" },
-        { country: "Mauricio", capital: "Port Louis" },
-        { country: "México", capital: "Ciudad de México" },
-        { country: "Micronesia", capital: "Palikir" },
-        { country: "Moldavia", capital: "Chisináu" },
-        { country: "Mónaco", capital: "Mónaco" },
-        { country: "Mongolia", capital: "Ulán Bator" },
-        { country: "Montenegro", capital: "Podgorica" },
-        { country: "Marruecos", capital: "Rabat" },
-        { country: "Mozambique", capital: "Maputo" },
-        { country: "Birmania", capital: "Naipyidó" },
-        { country: "Namibia", capital: "Windhoek" },
-        { country: "Nauru", capital: "Yaren" },
-        { country: "Nepal", capital: "Katmandú" },
-        { country: "Países Bajos", capital: "Ámsterdam" },
-        { country: "Nueva Zelanda", capital: "Wellington" },
-        { country: "Nicaragua", capital: "Managua" },
-        { country: "Níger", capital: "Niamey" },
-        { country: "Nigeria", capital: "Abuya" },
-        { country: "Macedonia del Norte", capital: "Skopie" },
-        { country: "Noruega", capital: "Oslo" },
-        { country: "Omán", capital: "Mascate" },
-        { country: "Pakistán", capital: "Islamabad" },
-        { country: "Palaos", capital: "Ngerulmud" },
-        { country: "Panamá", capital: "Ciudad de Panamá" },
-        { country: "Papúa Nueva Guinea", capital: "Port Moresby" },
-        { country: "Paraguay", capital: "Asunción" },
-        { country: "Perú", capital: "Lima" },
-        { country: "Filipinas", capital: "Manila" },
-        { country: "Polonia", capital: "Varsovia" },
-        { country: "Portugal", capital: "Lisboa" },
-        { country: "Catar", capital: "Doha" },
-        { country: "Rumania", capital: "Bucarest" },
-        { country: "Rusia", capital: "Moscú" },
-        { country: "Ruanda", capital: "Kigali" },
-        { country: "San Cristóbal y Nieves", capital: "Basseterre" },
-        { country: "San Vicente y las Granadinas", capital: "Kingstown" },
-        { country: "Santa Lucía", capital: "Castries" },
-        { country: "Samoa", capital: "Apia" },
-        { country: "San Marino", capital: "San Marino" },
-        { country: "Santo Tomé y Príncipe", capital: "Santo Tomé" },
-        { country: "Senegal", capital: "Dakar" },
-        { country: "Serbia", capital: "Belgrado" },
-        { country: "Seychelles", capital: "Victoria" },
-        { country: "Sierra Leona", capital: "Freetown" },
-        { country: "Singapur", capital: "Singapur" },
-        { country: "Eslovaquia", capital: "Bratislava" },
-        { country: "Eslovenia", capital: "Liubliana" },
-        { country: "Islas Salomón", capital: "Honiara" },
-        { country: "Somalia", capital: "Mogadiscio" },
-        { country: "Sudáfrica", capital: "Pretoria" },
-        { country: "Sudán del Sur", capital: "Yuba" },
-        { country: "Sudán", capital: "Jartum" },
-        { country: "Sri Lanka", capital: "Sri Jayawardenapura" },
-        { country: "Palestina", capital: "Jerusalén Este" },
-        { country: "Estados Unidos", capital: "Washington, D.C." },
-        { country: "Uruguay", capital: "Montevideo" },
-        { country: "Uzbekistán", capital: "Taskent" },
-        { country: "Vanuatu", capital: "Port Vila" },
-        { country: "Ciudad del Vaticano", capital: "Ciudad del Vaticano" },
-        { country: "Venezuela", capital: "Caracas" },
-        { country: "Vietnam", capital: "Hanói" },
-        { country: "Yemen", capital: "Saná" },
-        { country: "Zambia", capital: "Lusaka" },
-        { country: "Zimbabue", capital: "Harare" }
+      /* 
+        Array de notas musicales.
+        Cada objeto tiene la propiedad 'note' (el nombre de la nota)
+        y 'image' (el nombre del archivo de imagen en el raw).
+      */
+      const notes = [
+        { note: "DO", image: "DO.png" },
+        { note: "RE", image: "RE.png" },
+        { note: "MI", image: "MI.png" },
+        { note: "FA", image: "FA.png" },
+        { note: "SOL", image: "SOL.png" },
+        { note: "LA", image: "LA.png" },
+        { note: "SI", image: "SI.png" },
+        { note: "DO'", image: "DO'.png" },
+        { note: "RE'", image: "RE'.png" },
+        { note: "MI'", image: "MI'.png" }
       ];
 
       // Variables globales del juego
       let camera, scene, renderer;
-      let correctAnswer;
-      let answers = []; // paneles de respuesta
+      let correctAnswer;  // La nota correcta
+      let answers = [];   // Paneles de respuesta
       let hasCollided = false;
-      let questionMesh = null;
-      let questionText = "";
+      let questionMesh = null;    // Mesh para el texto de la pregunta
+      let questionText = "";      // "¿Qué nota es esta?"
+      let questionNoteImage = ""; // Nombre del archivo de imagen de la nota
+      let questionImageMesh = null; // Mesh para la imagen de la pregunta
       const collisionThreshold = 0.2;
       const sparksSystems = [];
 
-      // Contadores
+      // Contadores de aciertos y fallos
       let correctCount = 0;
       let wrongCount = 0;
 
-      // Tiempo del juego
+      // Tiempo de juego
       let gameStartTime = 0;
       const gameDuration = 60; // segundos
       let gameOver = false;
 
-      // Paneles en AR
+      // Paneles en AR: cuenta atrás y score
       let countdownMesh = null, countdownCanvas = null, countdownCtx = null, countdownTexture = null;
       let scoreMesh = null, scoreCanvas = null, scoreCtx = null, scoreTexture = null;
 
-      // Botón final
+      // Botón final: Reiniciar
       let restartButtonMesh = null, finalMessageMesh = null;
 
-      // Número de respuestas
+      // Número de respuestas seleccionado
       let selectedNumAnswers = 4;
 
-      // Transformaciones originales para paneles de respuestas
+      // Guardar las transformaciones originales de los paneles de respuesta
       let originalAnswerTransforms = null;
 
       // Control del beep
@@ -285,10 +124,10 @@
       let gameReady = false;
       let countdownStarted = false;
 
-      // Factor de resolución
+      // Factor de resolución para los canvas
       const resolutionFactor = 4;
 
-      // Función para dibujar un rectángulo redondeado
+      // Función para dibujar un rectángulo redondeado en un canvas
       function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -304,19 +143,19 @@
         ctx.fill();
       }
 
-      // Función para actualizar el panel de pregunta (dinámico)
+      // Actualiza el panel de pregunta (sólo el texto)
       function updateQuestionPanel() {
-        const text = questionText;
-        // Canvas temporal para medir el texto
+        const text = questionText; // "¿Qué nota es esta?"
+        const fontSize = 48 * resolutionFactor;
+        const padding = 40 * resolutionFactor;
+        // Medimos el ancho del texto
         const tmpCanvas = document.createElement('canvas');
         const tmpCtx = tmpCanvas.getContext('2d');
-        const fontSize = 48 * resolutionFactor;
         tmpCtx.font = 'Bold ' + fontSize + 'px Arial';
         const metrics = tmpCtx.measureText(text);
-        const padding = 40 * resolutionFactor; // margen interno
         const canvasWidth = metrics.width + padding;
-        const canvasHeight = 128 * resolutionFactor; // puedes hacerlo dinámico también
-
+        const canvasHeight = 128 * resolutionFactor;
+        
         const canvas = document.createElement('canvas');
         canvas.width = canvasWidth;
         canvas.height = canvasHeight;
@@ -335,7 +174,7 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Escala basada en el tamaño de referencia (0.6 x 0.15 para 512x128)
+        // Escala la geometría en base a una referencia (por ejemplo, 512x128 -> 0.6 x 0.15)
         const scaleX = 0.6 / (512 * resolutionFactor);
         const scaleY = 0.15 / (128 * resolutionFactor);
         const newWidth = canvas.width * scaleX;
@@ -350,15 +189,36 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
-          questionMesh.position.set(0, 0.3, -0.8);
+          // Posicionar el texto algo arriba (por ejemplo, en y = 0.5)
+          questionMesh.position.set(0, 0.5, -0.8);
           scene.add(questionMesh);
         }
       }
 
-      // Función para actualizar el panel de respuesta (dinámico)
+      // Crea y muestra la imagen de la pregunta usando la nota seleccionada
+      function updateQuestionImage() {
+        // Elimina la imagen anterior, si existe
+        if (questionImageMesh) {
+          scene.remove(questionImageMesh);
+          questionImageMesh = null;
+        }
+        const loader = new THREE.TextureLoader();
+        // Asumimos que las imágenes están en el mismo raw (en este ejemplo, en ARMultimusic/main/)
+        const baseURL = "https://raw.githubusercontent.com/rafgim2/ARMusic/main/";
+        loader.load(baseURL + questionNoteImage, function(texture) {
+          // Definimos la geometría para la imagen (ajusta estos valores según lo necesites)
+          const geometry = new THREE.PlaneGeometry(0.5, 0.3);
+          const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+          questionImageMesh = new THREE.Mesh(geometry, material);
+          // Posicionamos la imagen debajo del panel de texto (por ejemplo, en y = 0)
+          questionImageMesh.position.set(0, 0, -0.8);
+          scene.add(questionImageMesh);
+        });
+      }
+
+      // Actualiza un panel de respuesta (dinámicamente ajustando el tamaño según el texto)
       function updateAnswerPanel(mesh, value) {
         const text = value;
-        // Canvas temporal para medir el texto
         const tmpCanvas = document.createElement('canvas');
         const tmpCtx = tmpCanvas.getContext('2d');
         const fontSize = 75 * resolutionFactor;
@@ -386,7 +246,7 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Escala basada en 256x256 => 0.15 x 0.15
+        // Para las respuestas usamos una escala basada en un canvas de referencia (256x256 => 0.15 x 0.15)
         const scaleFactor = 0.15 / (256 * resolutionFactor);
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
@@ -398,7 +258,7 @@
         mesh.userData.answer = value;
       }
 
-      // Inicialización de la escena AR
+      // Inicializa la escena AR
       function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -414,11 +274,11 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Overlay inicial
+        // Creamos el overlay inicial
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
-          '<img src="ARCapitals.jpeg" alt="ARCapitals" style="margin-bottom:20px;">' +
+          '<img src="ARMusic.jpeg" alt="ARMusic" style="margin-bottom:20px;">' +
           '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
           '<div class="respuestas-container">' +
             '<label for="numAnswers">Respuestas:</label>' +
@@ -463,7 +323,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // Conteo regresivo
+      // Inicia el conteo regresivo
       function startCountdown() {
         gameStartTime = performance.now();
         countdownCanvas = document.createElement('canvas');
@@ -480,7 +340,7 @@
         scene.add(countdownMesh);
       }
 
-      // Visualización del marcador
+      // Crea el marcador de score
       function createScoreDisplay() {
         scoreCanvas = document.createElement('canvas');
         scoreCanvas.width = 256 * resolutionFactor;
@@ -527,19 +387,21 @@
         scoreTexture.needsUpdate = true;
       }
 
-      // Genera la pregunta seleccionando un país aleatorio
+      // Genera la pregunta seleccionando una nota aleatoria
       function generateQuestion() {
-        const randomIndex = Math.floor(Math.random() * countries.length);
-        const selectedCountry = countries[randomIndex];
-        correctAnswer = selectedCountry.capital;
-        questionText = `¿Cuál es la capital de ${selectedCountry.country}?`;
+        const randomIndex = Math.floor(Math.random() * notes.length);
+        const selectedNote = notes[randomIndex];
+        correctAnswer = selectedNote.note;
+        questionText = "¿Qué nota es esta?";
+        questionNoteImage = selectedNote.image;
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
         updateQuestionPanel();
+        updateQuestionImage();
         updateAnswerObjects();
         beepPlayed = false;
       }
 
-      // Función para crear y actualizar los paneles de respuestas
+      // Crea o actualiza los paneles de respuestas
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const minArc = 1.39626;
@@ -551,7 +413,7 @@
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
             for (let i = 0; i < numAnswers; i++) {
-              // Creamos el canvas base (se actualizará en updateAnswerPanel)
+              // Canvas base para la respuesta (será actualizado)
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
               canvas.height = 256 * resolutionFactor;
@@ -567,12 +429,12 @@
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
-              // Generamos respuestas alternativas
+              // Genera respuestas alternativas a partir de las notas
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
-                const randomIndex = Math.floor(Math.random() * countries.length);
-                const candidateCapital = countries[randomIndex].capital;
-                if(candidateCapital !== correctAnswer) wrongAnswers.add(candidateCapital);
+                const randomIndex = Math.floor(Math.random() * notes.length);
+                const candidateNote = notes[randomIndex].note;
+                if(candidateNote !== correctAnswer) wrongAnswers.add(candidateNote);
               }
               const answersArray = [correctAnswer, ...wrongAnswers];
               answersArray.sort(() => Math.random() - 0.5);
@@ -592,7 +454,6 @@
               camera.getWorldPosition(cameraWorldPos);
               const lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
               mesh.lookAt(lookAtPos);
-              // Actualizamos el panel de respuesta con el tamaño adecuado
               updateAnswerPanel(mesh, answersArray[i]);
               mesh.userData.answer = answersArray[i];
               answers.push(mesh);
@@ -618,9 +479,9 @@
 
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
-                const randomIndex = Math.floor(Math.random() * countries.length);
-                const candidateCapital = countries[randomIndex].capital;
-                if(candidateCapital !== correctAnswer) wrongAnswers.add(candidateCapital);
+                const randomIndex = Math.floor(Math.random() * notes.length);
+                const candidateNote = notes[randomIndex].note;
+                if(candidateNote !== correctAnswer) wrongAnswers.add(candidateNote);
               }
               const answersArray = [correctAnswer, ...wrongAnswers];
               answersArray.sort(() => Math.random() - 0.5);
@@ -643,9 +504,9 @@
           const numAnswersExisting = selectedNumAnswers;
           const wrongAnswers = new Set();
           while (wrongAnswers.size < (numAnswersExisting - 1)) {
-            const randomIndex = Math.floor(Math.random() * countries.length);
-            const candidateCapital = countries[randomIndex].capital;
-            if(candidateCapital !== correctAnswer) wrongAnswers.add(candidateCapital);
+            const randomIndex = Math.floor(Math.random() * notes.length);
+            const candidateNote = notes[randomIndex].note;
+            if(candidateNote !== correctAnswer) wrongAnswers.add(candidateNote);
           }
           const answersArray = [correctAnswer, ...wrongAnswers];
           answersArray.sort(() => Math.random() - 0.5);
@@ -763,11 +624,13 @@
                   successClone.play().catch(e => console.error(e));
                   createSparksEffect(panel.position);
                   if (questionMesh) questionMesh.visible = false;
+                  if (questionImageMesh) questionImageMesh.visible = false;
                   answers.forEach(a => a.visible = false);
                   setTimeout(() => {
                     if (!gameOver) {
                       generateQuestion();
                       if (questionMesh) questionMesh.visible = true;
+                      if (questionImageMesh) questionImageMesh.visible = true;
                       answers.forEach(a => a.visible = true);
                     }
                     hasCollided = false;
@@ -814,6 +677,7 @@
       function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
+        if (questionImageMesh) scene.remove(questionImageMesh);
         if (countdownMesh) scene.remove(countdownMesh);
         if (scoreMesh) scene.remove(scoreMesh);
         answers.forEach(panel => scene.remove(panel));
@@ -870,6 +734,7 @@
         if(finalMessageMesh) scene.remove(finalMessageMesh);
         if(restartButtonMesh) scene.remove(restartButtonMesh);
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
+        if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
         correctCount = 0;
         wrongCount = 0;
         gameStartTime = performance.now();
@@ -924,11 +789,13 @@
               successClone.play().catch(e => console.error(e));
               createSparksEffect(panel.position);
               if (questionMesh) questionMesh.visible = false;
+              if (questionImageMesh) questionImageMesh.visible = false;
               answers.forEach(a => a.visible = false);
               setTimeout(() => {
                 if (!gameOver) {
                   generateQuestion();
                   if (questionMesh) questionMesh.visible = true;
+                  if (questionImageMesh) questionImageMesh.visible = true;
                   answers.forEach(a => a.visible = true);
                 }
                 hasCollided = false;
