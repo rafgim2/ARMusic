@@ -228,6 +228,7 @@
           const geometry = new THREE.PlaneGeometry(0.2, 0.2);
           const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
           questionImageMesh = new THREE.Mesh(geometry, material);
+          // Se coloca a -0.82, por ejemplo
           questionImageMesh.position.set(0, 0.25, -0.82);
           scene.add(questionImageMesh);
         });
@@ -262,6 +263,7 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
 
+        // Ajusta un poco el escalado si lo deseas
         const scaleFactor = (0.15 * 2) / (256 * resolutionFactor);
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
@@ -274,10 +276,14 @@
       }
 
       // ====================
-      // Actualiza posición de los paneles
+      // AQUÍ ES DONDE CAMBIAMOS EL CENTRO Y EL RADIO
       // ====================
       function updateAnswerPositions() {
+        // Dejas radius en 0.8
         const radius = 0.8;
+
+        // No añadimos offset en Z, así que el "centro" es (0,0,0).
+        // (Si el usuario/cámara está en (0,0,0), los paneles quedarán a 0.8m alrededor.)
         const gapWorld = 0.05;
         const gapAngle = gapWorld / radius;
         const numPanels = answers.length;
@@ -302,12 +308,16 @@
           angles.push(currentAngle);
         }
 
+        // Distribución en un arco de radio=0.8 alrededor del (0,0,0)
         answers.forEach((mesh, i) => {
           let angle = angles[i];
           let x = radius * Math.sin(angle);
           let z = -radius * Math.cos(angle);
+
+          // Dejamos la misma Y que ya tuviera (posiblemente 0).
           mesh.position.set(x, mesh.position.y, z);
 
+          // Miran hacia la cámara cada vez que se recolocan
           let cameraWorldPos = new THREE.Vector3();
           camera.getWorldPosition(cameraWorldPos);
           let lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
@@ -350,6 +360,7 @@
             '</select>' +
           '</div>';
 
+        // Hand tracking sólo en Android, etc.
         const arButton = ARButton.createButton(renderer, { requiredFeatures: /Mobi|Android/i.test(navigator.userAgent) ? ['hit-test'] : ['hit-test', 'hand-tracking'] });
         if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
@@ -430,12 +441,6 @@
         );
         countdownTexture.needsUpdate = true;
 
-        if (remaining <= -10 && !beepPlayed) {
-          const beepSound = document.getElementById('beepSound');
-          beepSound.currentTime = 0;
-          beepSound.play().catch(e => console.error(e));
-          beepPlayed = true;
-        }
         return remaining;
       }
 
@@ -469,13 +474,14 @@
 
       // Crea o actualiza los paneles de respuestas sin sombras
       function createAnswerObjects(numAnswers, initialCreation) {
+        const minArc = 1.39626;
+        const maxArc = Math.PI;
+        let arcAngle = numAnswers <= 4 ? minArc : (numAnswers >= 10 ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc));
+        const angleStart = -arcAngle / 2;
+        const angleEnd = arcAngle / 2;
+        const radius = 0.8;
+
         if (initialCreation) {
-          const minArc = 1.39626;
-          const maxArc = Math.PI;
-          let arcAngle = numAnswers <= 4 ? minArc : (numAnswers >= 10 ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc));
-          const angleStart = -arcAngle / 2;
-          const angleEnd = arcAngle / 2;
-          const radius = 0.8;
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
             for (let i = 0; i < numAnswers; i++) {
