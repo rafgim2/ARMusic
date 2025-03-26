@@ -122,7 +122,10 @@
       // Factor de resolución para los canvas
       const resolutionFactor = 4;
 
-      // Función para dibujar un rectángulo redondeado en un canvas
+      // ====================
+      // PANELES: QUITAR SOMBRAS
+      // ====================
+      // Función para dibujar un rectángulo redondeado SIN sombras (se eliminan shadowColor y shadowBlur)
       function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -138,7 +141,7 @@
         ctx.fill();
       }
 
-      // Actualiza el panel de pregunta (sólo el texto)
+      // Actualiza el panel de pregunta (texto) sin sombras
       function updateQuestionPanel() {
         const text = questionText; // "¿Qué nota es esta?"
         const fontSize = 48 * resolutionFactor;
@@ -156,11 +159,8 @@
         canvas.height = canvasHeight;
         const ctx = canvas.getContext('2d');
         ctx.font = 'Bold ' + fontSize + 'px Arial';
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-        ctx.shadowBlur = 10 * resolutionFactor;
         ctx.fillStyle = "#007BFF";
         drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
-        ctx.shadowBlur = 0;
         ctx.fillStyle = "#FFFFFF";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -169,7 +169,6 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Escala la geometría según referencia
         const scaleX = 0.6 / (512 * resolutionFactor);
         const scaleY = 0.15 / (128 * resolutionFactor);
         const newWidth = canvas.width * scaleX;
@@ -184,13 +183,13 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
-          // Ubicamos la pregunta en el centro (y = 0.3)
+          // Ubicamos la pregunta en (x=0, y=0.5, z=-0.78)
           questionMesh.position.set(0, 0.5, -0.78);
           scene.add(questionMesh);
         }
       }
 
-      // Crea y muestra la imagen de la pregunta usando la nota seleccionada
+      // Actualiza la imagen de la nota en la pregunta con esquinas redondeadas
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -199,7 +198,6 @@
         const loader = new THREE.TextureLoader();
         const baseURL = "https://raw.githubusercontent.com/rafgim2/ARMusic/main/";
         loader.load(baseURL + questionNoteImage, function(texture) {
-          // Creamos un canvas para recortar la imagen con esquinas redondeadas
           const canvas = document.createElement('canvas');
           const canvasWidth = 256;
           const canvasHeight = 256;
@@ -225,17 +223,16 @@
           ctx.restore();
           
           const roundedTexture = new THREE.CanvasTexture(canvas);
-          // Geometría más pequeña para la imagen
           const geometry = new THREE.PlaneGeometry(0.2, 0.2);
           const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
           questionImageMesh = new THREE.Mesh(geometry, material);
-          // Ubicamos la imagen en la parte inferior (y = -0.3)
+          // Ubicamos la imagen en (x=0, y=0.25, z=-0.76)
           questionImageMesh.position.set(0, 0.25, -0.76);
           scene.add(questionImageMesh);
         });
       }
 
-      // Actualiza un panel de respuesta (dinámicamente ajustando el tamaño según el texto)
+      // Actualiza un panel de respuesta sin sombras
       function updateAnswerPanel(mesh, value) {
         const text = value;
         const tmpCanvas = document.createElement('canvas');
@@ -252,11 +249,9 @@
         canvas.height = canvasHeight;
         const ctx = canvas.getContext('2d');
         ctx.font = 'Bold ' + fontSize + 'px Arial';
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-        ctx.shadowBlur = 10 * resolutionFactor;
+        // Se han quitado las sombras
         ctx.fillStyle = "#007BFF";
         drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
-        ctx.shadowBlur = 0;
         ctx.fillStyle = "#FFFFFF";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -265,9 +260,8 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         
-        // Escala basada en un canvas de referencia
+        // Escala según referencia
         const scaleFactor = (0.15 * 2) / (256 * resolutionFactor);
-
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
         
@@ -276,6 +270,46 @@
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
         mesh.userData.answer = value;
+      }
+
+      // Función para actualizar las posiciones de los paneles de respuesta
+      function updateAnswerPositions() {
+        const radius = 0.8;
+        const gapWorld = 0.05;
+        const gapAngle = gapWorld / radius;
+        const numPanels = answers.length;
+        let panelAngles = [];
+
+        answers.forEach(mesh => {
+          let panelWidth = mesh.userData.panelWidth || mesh.geometry.parameters.width;
+          let halfAngle = Math.asin((panelWidth / 2) / radius);
+          panelAngles.push(2 * halfAngle);
+        });
+
+        let totalAngle = panelAngles[0] / 2 + panelAngles[numPanels - 1] / 2;
+        for (let i = 0; i < numPanels - 1; i++) {
+          totalAngle += (panelAngles[i] / 2) + gapAngle + (panelAngles[i+1] / 2);
+        }
+
+        let angles = [];
+        let currentAngle = -totalAngle / 2 + panelAngles[0] / 2;
+        angles.push(currentAngle);
+        for (let i = 1; i < numPanels; i++) {
+          currentAngle += (panelAngles[i-1] / 2) + gapAngle + (panelAngles[i] / 2);
+          angles.push(currentAngle);
+        }
+
+        answers.forEach((mesh, i) => {
+          let angle = angles[i];
+          let x = radius * Math.sin(angle);
+          let z = -radius * Math.cos(angle);
+          mesh.position.set(x, mesh.position.y, z);
+          
+          let cameraWorldPos = new THREE.Vector3();
+          camera.getWorldPosition(cameraWorldPos);
+          let lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
+          mesh.lookAt(lookAtPos);
+        });
       }
 
       // Inicializa la escena AR
@@ -294,7 +328,7 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Creamos el overlay inicial
+        // Overlay inicial
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
@@ -422,7 +456,7 @@
         beepPlayed = false;
       }
 
-      // Crea o actualiza los paneles de respuestas
+      // Crea o actualiza los paneles de respuestas sin sombras
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const minArc = 1.39626;
@@ -434,23 +468,19 @@
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
             for (let i = 0; i < numAnswers; i++) {
-              // Canvas base para la respuesta (será actualizado)
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
               canvas.height = 256 * resolutionFactor;
               const ctx = canvas.getContext('2d');
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-              ctx.shadowBlur = 10 * resolutionFactor;
+              // Se quitan las sombras
               ctx.fillStyle = "#007BFF";
               drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
-              ctx.shadowBlur = 0;
-              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
               ctx.fillStyle = "#FFFFFF";
+              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
-              // Genera respuestas alternativas a partir de las notas
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
                 const randomIndex = Math.floor(Math.random() * notes.length);
@@ -464,7 +494,7 @@
               const texture = new THREE.CanvasTexture(canvas);
               texture.minFilter = THREE.LinearFilter;
               texture.magFilter = THREE.LinearFilter;
-              const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+              const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
               const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
@@ -488,13 +518,10 @@
               canvas.height = 256 * resolutionFactor;
               const ctx = canvas.getContext('2d');
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-              ctx.shadowBlur = 10 * resolutionFactor;
               ctx.fillStyle = "#007BFF";
               drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
-              ctx.shadowBlur = 0;
-              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
               ctx.fillStyle = "#FFFFFF";
+              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
@@ -510,7 +537,7 @@
               const texture = new THREE.CanvasTexture(canvas);
               texture.minFilter = THREE.LinearFilter;
               texture.magFilter = THREE.LinearFilter;
-              const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+              const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
               mesh.position.copy(originalAnswerTransforms[i].position);
@@ -535,13 +562,38 @@
             updateAnswerPanel(answers[i], answersArray[i]);
           }
         }
+        updateAnswerPositions();
       }
 
       function updateAnswerObjects() {
         createAnswerObjects(selectedNumAnswers, false);
+        updateAnswerPositions();
       }
 
-      // Efecto de chispas
+      // ====================
+      // CHISPAS: TEXTURA CON DEGRADADO RADIAL Y BLENDING ADITIVO
+      // ====================
+      function createCircleTexture() {
+        const size = 128; // Usamos 128x128
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, size, size);
+        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        return texture;
+      }
+
+      const sparkTexture = createCircleTexture();
+
+      // Crea el efecto de chispas con las propiedades iguales a AR MULTIMUSIC
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -558,7 +610,17 @@
         }
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({ color: 0xffaa00, size: 0.02 });
+        const material = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.02, // Se mantiene en 0.02 para que coincida
+          map: sparkTexture,
+          transparent: true,
+          opacity: 1.0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          alphaTest: 0.5,
+          sizeAttenuation: true,
+        });
         const points = new THREE.Points(geometry, material);
         scene.add(points);
         sparksSystems.push({
