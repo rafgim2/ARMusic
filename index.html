@@ -38,7 +38,7 @@
       }
       #overlay .respuestas-container label {
         font-size: 14px;
-        color: black;
+         color: black;
       }
       #overlay .respuestas-container select {
         font-size: 14px;
@@ -78,9 +78,7 @@
         { note: "MI'", image: "MI'.png" }
       ];
 
-      // ======================
-      // Variables globales
-      // ======================
+      // Variables globales del juego
       let camera, scene, renderer;
       let correctAnswer;
       let answers = []; // paneles de respuesta
@@ -92,33 +90,44 @@
       const collisionThreshold = 0.2;
       const sparksSystems = [];
 
+      // Contadores
       let correctCount = 0;
       let wrongCount = 0;
 
+      // Tiempo de juego
       let gameStartTime = 0;
       const gameDuration = 60; // segundos
       let gameOver = false;
 
+      // Paneles en AR
       let countdownMesh = null, countdownCanvas = null, countdownCtx = null, countdownTexture = null;
       let scoreMesh = null, scoreCanvas = null, scoreCtx = null, scoreTexture = null;
 
+      // Botón final
       let restartButtonMesh = null, finalMessageMesh = null;
+
+      // Número de respuestas
       let selectedNumAnswers = 4;
+
+      // Transformaciones originales para paneles de respuestas
       let originalAnswerTransforms = null;
 
+      // Control beep
       let beepPlayed = false;
+
+      // Control de inicio
       let gameReady = false;
       let countdownStarted = false;
 
+      // Factor de resolución
       const resolutionFactor = 4;
 
-      // *** Bandera para que SOLO se orienten la primera vez ***
+      // ===> NUEVA VARIABLE: Para reorientar SOLO la primera vez
       let alreadyPositioned = false;
 
-
-      // ======================
-      // Función para dibujar rectángulo redondeado
-      // ======================
+      // ==============
+      // Función para dibujar rectángulo redondeado sin sombras
+      // ==============
       function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -134,9 +143,9 @@
         ctx.fill();
       }
 
-      // ======================
-      // Panel de pregunta (texto)
-      // ======================
+      // ====================
+      // Actualiza el panel de pregunta (texto)
+      // ====================
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -183,9 +192,9 @@
         }
       }
 
-      // ======================
-      // Imagen de la nota musical con esquinas redondeadas
-      // ======================
+      // ====================
+      // Imagen de la nota con esquinas redondeadas
+      // ====================
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -227,9 +236,9 @@
         });
       }
 
-      // ======================
-      // Panel de respuesta
-      // ======================
+      // ====================
+      // Actualiza panel de respuesta
+      // ====================
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding = 40 * resolutionFactor;
@@ -256,7 +265,6 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
 
-        // Factor de escala
         const scaleFactor = (0.15 * 2) / (256 * resolutionFactor);
         const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
@@ -266,25 +274,22 @@
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
         mesh.userData.answer = value;
-        // Guardamos el ancho (para calcular ángulo)
-        mesh.userData.panelWidth = newWidth;
       }
 
-      // ======================
-      // Distribución en arco (radio=0.8, centro= (0,0,0)) 
-      // => pero orientamos SOLO la primera vez
-      // ======================
+      // ====================
+      // updateAnswerPositions (solo se orientan la primera vez)
+      // ====================
       function updateAnswerPositions() {
-        const radius = 0.8;  // radio
+        // Quedan en un arco con radio=0.8, centro= (0,0,0)
+        const radius = 0.8;
         const gapWorld = 0.05;
         const gapAngle = gapWorld / radius;
         const numPanels = answers.length;
         let panelAngles = [];
 
         answers.forEach(mesh => {
-          // Si no tiene guardado panelWidth, usamos el ancho original
-          let w = mesh.userData.panelWidth || mesh.geometry.parameters.width;
-          let halfAngle = Math.asin((w / 2) / radius);
+          let panelWidth = mesh.userData.panelWidth || mesh.geometry.parameters.width;
+          let halfAngle = Math.asin((panelWidth / 2) / radius);
           panelAngles.push(2 * halfAngle);
         });
 
@@ -305,10 +310,9 @@
           let angle = angles[i];
           let x = radius * Math.sin(angle);
           let z = -radius * Math.cos(angle);
-          // Dejamos Y como está (en tu caso 0).
           mesh.position.set(x, mesh.position.y, z);
 
-          // ** SOLO orientamos la primera vez **
+          // ===> Solo se reorientan la primera vez
           if (!alreadyPositioned) {
             let cameraWorldPos = new THREE.Vector3();
             camera.getWorldPosition(cameraWorldPos);
@@ -317,15 +321,13 @@
           }
         });
 
-        // Tras la primera llamada, ya no se reorientan
-        if(!alreadyPositioned) {
+        // Al acabar la primera vez, bloqueamos la reorientación
+        if (!alreadyPositioned) {
           alreadyPositioned = true;
         }
       }
 
-      // ======================
       // Inicializa la escena AR
-      // ======================
       function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -360,7 +362,6 @@
             '</select>' +
           '</div>';
 
-        // ARButton (hand-tracking sólo en Android)
         const arButton = ARButton.createButton(renderer, { requiredFeatures: /Mobi|Android/i.test(navigator.userAgent) ? ['hit-test'] : ['hit-test', 'hand-tracking'] });
         if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
@@ -391,9 +392,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // ======================
-      // Empieza el conteo regresivo
-      // ======================
+      // Inicia el conteo regresivo
       function startCountdown() {
         gameStartTime = performance.now();
         countdownCanvas = document.createElement('canvas');
@@ -410,9 +409,7 @@
         scene.add(countdownMesh);
       }
 
-      // ======================
       // Visualización del marcador
-      // ======================
       function createScoreDisplay() {
         scoreCanvas = document.createElement('canvas');
         scoreCanvas.width = 256 * resolutionFactor;
@@ -444,6 +441,7 @@
           countdownCanvas.height / 2
         );
         countdownTexture.needsUpdate = true;
+
         return remaining;
       }
 
@@ -461,9 +459,7 @@
         scoreTexture.needsUpdate = true;
       }
 
-      // ======================
-      // Generar la pregunta
-      // ======================
+      // Genera la pregunta seleccionando una nota aleatoria
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
@@ -477,9 +473,7 @@
         beepPlayed = false;
       }
 
-      // ======================
-      // Creación/actualización de paneles
-      // ======================
+      // Crea o actualiza los paneles de respuestas
       function createAnswerObjects(numAnswers, initialCreation) {
         const minArc = 1.39626;
         const maxArc = Math.PI;
@@ -489,7 +483,6 @@
         const radius = 0.8;
 
         if (initialCreation) {
-          // Se crean por primera vez
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
             for (let i = 0; i < numAnswers; i++) {
@@ -507,8 +500,8 @@
 
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
-                const rIndex = Math.floor(Math.random() * notes.length);
-                const candidateNote = notes[rIndex].note;
+                const randomIndex = Math.floor(Math.random() * notes.length);
+                const candidateNote = notes[randomIndex].note;
                 if(candidateNote !== correctAnswer) wrongAnswers.add(candidateNote);
               }
               const answersArray = [correctAnswer, ...wrongAnswers];
@@ -521,15 +514,12 @@
               const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
-
-              // Asignamos posición inicial en el arco
               const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
               const x = radius * Math.sin(angle);
               const z = -radius * Math.cos(angle);
               mesh.position.set(x, 0, z);
-
-              // Solo en la primera creación, **sí** orientamos (pero ya se controlará también en updateAnswerPositions).
-              // De todos modos, lo dejamos para que no aparezcan al revés
+              // Mirar a la cámara SOLO la primera vez (lo dejamos, pero en practice
+              //  updateAnswerPositions también reorientaría la 1ª vez).
               const cameraWorldPos = new THREE.Vector3();
               camera.getWorldPosition(cameraWorldPos);
               const lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
@@ -539,18 +529,46 @@
               mesh.userData.answer = answersArray[i];
               answers.push(mesh);
               scene.add(mesh);
-
               originalAnswerTransforms.push({ position: mesh.position.clone(), rotation: mesh.rotation.clone() });
             }
           } else {
-            // Caso improbable, ya existían transforms
             for (let i = 0; i < numAnswers; i++) {
-              ...
-              // (Para no alargar, se deja igual a tu código)
+              const canvas = document.createElement('canvas');
+              canvas.width = 256 * resolutionFactor;
+              canvas.height = 256 * resolutionFactor;
+              const ctx = canvas.getContext('2d');
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = "#007BFF";
+              drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
+              ctx.fillStyle = "#FFFFFF";
+              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+
+              const wrongAnswers = new Set();
+              while (wrongAnswers.size < (numAnswers - 1)) {
+                const randomIndex = Math.floor(Math.random() * notes.length);
+                const candidateNote = notes[randomIndex].note;
+                if(candidateNote !== correctAnswer) wrongAnswers.add(candidateNote);
+              }
+              const answersArray = [correctAnswer, ...wrongAnswers];
+              answersArray.sort(() => Math.random() - 0.5);
+              ctx.fillText(answersArray[i], canvas.width / 2, canvas.height / 2);
+              const texture = new THREE.CanvasTexture(canvas);
+              texture.minFilter = THREE.LinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
+              const geometry = new THREE.PlaneGeometry(0.15, 0.15);
+              const mesh = new THREE.Mesh(geometry, material);
+              mesh.position.copy(originalAnswerTransforms[i].position);
+              mesh.rotation.copy(originalAnswerTransforms[i].rotation);
+              updateAnswerPanel(mesh, answersArray[i]);
+              mesh.userData.answer = answersArray[i];
+              answers.push(mesh);
+              scene.add(mesh);
             }
           }
         } else {
-          // Ya existen, solo actualizamos su texto
           const numAnswersExisting = selectedNumAnswers;
           const wrongAnswers = new Set();
           while (wrongAnswers.size < (numAnswersExisting - 1)) {
@@ -564,7 +582,6 @@
             updateAnswerPanel(answers[i], answersArray[i]);
           }
         }
-        // Al final recolocamos
         updateAnswerPositions();
       }
 
@@ -573,9 +590,9 @@
         updateAnswerPositions();
       }
 
-      // ======================
-      // Sparks y blending
-      // ======================
+      // ==============
+      // TEXTURA CHISPAS DEGRADADO + BLENDING
+      // ==============
       function createCircleTexture() {
         const size = 128;
         const canvas = document.createElement('canvas');
@@ -597,6 +614,9 @@
 
       const sparkTexture = createCircleTexture();
 
+      // ==============
+      // Efecto de chispas con fade out final (300ms)
+      // ==============
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -634,9 +654,7 @@
         });
       }
 
-      // ======================
-      // Bucle principal
-      // ======================
+      // Animación
       function animate() {
         renderer.setAnimationLoop(render);
       }
@@ -658,6 +676,7 @@
           const dt = (currentTime - system.lastUpdate) / 1000;
           system.lastUpdate = currentTime;
           
+          // Actualizamos posiciones
           const positions = system.points.geometry.attributes.position.array;
           for (let j = 0; j < system.velocities.length; j++) {
             positions[j * 3] += system.velocities[j].x * dt;
@@ -666,6 +685,7 @@
           }
           system.points.geometry.attributes.position.needsUpdate = true;
 
+          // Cálculo de vida y fade out en los últimos 300ms
           let life = currentTime - system.startTime;
           if (life > 1700) {
             let fadeTime = life - 1700;
@@ -844,7 +864,7 @@
         answers.forEach(panel => scene.remove(panel));
         answers = [];
 
-        // Volvemos a permitir que se orienten una vez
+        // Volvemos a permitir que se orienten la primera vez
         alreadyPositioned = false;
 
         createAnswerObjects(selectedNumAnswers, true);
