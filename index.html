@@ -122,9 +122,6 @@
       // Factor de resolución
       const resolutionFactor = 4;
 
-      // ===> NUEVA VARIABLE: Para reorientar SOLO la primera vez
-      let alreadyPositioned = false;
-
       // ==============
       // Función para dibujar rectángulo redondeado sin sombras
       // ==============
@@ -144,7 +141,7 @@
       }
 
       // ====================
-      // Actualiza el panel de pregunta (texto)
+      // Actualiza el panel de pregunta (texto) sin sombras
       // ====================
       function updateQuestionPanel() {
         const text = questionText;
@@ -237,7 +234,7 @@
       }
 
       // ====================
-      // Actualiza panel de respuesta
+      // Actualiza panel de respuesta sin sombras
       // ====================
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
@@ -274,13 +271,16 @@
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
         mesh.userData.answer = value;
+
+        // Guardamos (o refrescamos) el ancho en userData, en caso de que se use en updateAnswerPositions
+        mesh.userData.panelWidth = newWidth;
       }
 
       // ====================
-      // updateAnswerPositions (solo se orientan la primera vez)
+      // Actualiza posición de los paneles
+      // (AHORA sin reorientarlos cada vez)
       // ====================
       function updateAnswerPositions() {
-        // Quedan en un arco con radio=0.8, centro= (0,0,0)
         const radius = 0.8;
         const gapWorld = 0.05;
         const gapAngle = gapWorld / radius;
@@ -310,21 +310,12 @@
           let angle = angles[i];
           let x = radius * Math.sin(angle);
           let z = -radius * Math.cos(angle);
+          // Ajustamos posición
           mesh.position.set(x, mesh.position.y, z);
 
-          // ===> Solo se reorientan la primera vez
-          if (!alreadyPositioned) {
-            let cameraWorldPos = new THREE.Vector3();
-            camera.getWorldPosition(cameraWorldPos);
-            let lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
-            mesh.lookAt(lookAtPos);
-          }
+          // *** Se ha ELIMINADO la reorientación aquí ***
+          // (así NO se reorienta cada vez que hay nueva pregunta)
         });
-
-        // Al acabar la primera vez, bloqueamos la reorientación
-        if (!alreadyPositioned) {
-          alreadyPositioned = true;
-        }
       }
 
       // Inicializa la escena AR
@@ -362,6 +353,7 @@
             '</select>' +
           '</div>';
 
+        // Ajuste: si es móvil, solo 'hit-test'; si no, también 'hand-tracking'
         const arButton = ARButton.createButton(renderer, { requiredFeatures: /Mobi|Android/i.test(navigator.userAgent) ? ['hit-test'] : ['hit-test', 'hand-tracking'] });
         if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
@@ -442,6 +434,12 @@
         );
         countdownTexture.needsUpdate = true;
 
+        if (remaining <= -10 && !beepPlayed) {
+          const beepSound = document.getElementById('beepSound');
+          beepSound.currentTime = 0;
+          beepSound.play().catch(e => console.error(e));
+          beepPlayed = true;
+        }
         return remaining;
       }
 
@@ -475,16 +473,17 @@
 
       // Crea o actualiza los paneles de respuestas
       function createAnswerObjects(numAnswers, initialCreation) {
-        const minArc = 1.39626;
-        const maxArc = Math.PI;
-        let arcAngle = numAnswers <= 4 ? minArc : (numAnswers >= 10 ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc));
-        const angleStart = -arcAngle / 2;
-        const angleEnd = arcAngle / 2;
-        const radius = 0.8;
-
         if (initialCreation) {
+          // === SE ORIENTAN SOLO AQUI (primera vez) ===
+          const minArc = 1.39626;
+          const maxArc = Math.PI;
+          let arcAngle = numAnswers <= 4 ? minArc : (numAnswers >= 10 ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc));
+          const angleStart = -arcAngle / 2;
+          const angleEnd = arcArc = arcAngle / 2;
+          const radius = 0.8;
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
+            // Creamos paneles
             for (let i = 0; i < numAnswers; i++) {
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
@@ -498,6 +497,7 @@
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
+              // Generamos respuestas (1 correcta + resto falsas)
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
                 const randomIndex = Math.floor(Math.random() * notes.length);
@@ -514,12 +514,14 @@
               const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
+
+              // Posición en el arco
               const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
               const x = radius * Math.sin(angle);
               const z = -radius * Math.cos(angle);
               mesh.position.set(x, 0, z);
-              // Mirar a la cámara SOLO la primera vez (lo dejamos, pero en practice
-              //  updateAnswerPositions también reorientaría la 1ª vez).
+
+              // **Aquí se orienta solo la primera vez**:
               const cameraWorldPos = new THREE.Vector3();
               camera.getWorldPosition(cameraWorldPos);
               const lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
@@ -529,9 +531,12 @@
               mesh.userData.answer = answersArray[i];
               answers.push(mesh);
               scene.add(mesh);
+
+              // Guardamos transformaciones iniciales
               originalAnswerTransforms.push({ position: mesh.position.clone(), rotation: mesh.rotation.clone() });
             }
           } else {
+            // (Si originalAnswerTransforms ya existe, se reusan)
             for (let i = 0; i < numAnswers; i++) {
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
@@ -560,8 +565,11 @@
               const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
+
+              // Recogemos la posición/rotación original
               mesh.position.copy(originalAnswerTransforms[i].position);
               mesh.rotation.copy(originalAnswerTransforms[i].rotation);
+
               updateAnswerPanel(mesh, answersArray[i]);
               mesh.userData.answer = answersArray[i];
               answers.push(mesh);
@@ -569,6 +577,7 @@
             }
           }
         } else {
+          // en actualizaciones posteriores (nueva pregunta), SOLO cambia el texto
           const numAnswersExisting = selectedNumAnswers;
           const wrongAnswers = new Set();
           while (wrongAnswers.size < (numAnswersExisting - 1)) {
@@ -582,6 +591,7 @@
             updateAnswerPanel(answers[i], answersArray[i]);
           }
         }
+        // recolocamos en arco (SIN reorientar)
         updateAnswerPositions();
       }
 
@@ -863,10 +873,6 @@
         gameOver = false;
         answers.forEach(panel => scene.remove(panel));
         answers = [];
-
-        // Volvemos a permitir que se orienten la primera vez
-        alreadyPositioned = false;
-
         createAnswerObjects(selectedNumAnswers, true);
         generateQuestion();
         countdownStarted = false;
