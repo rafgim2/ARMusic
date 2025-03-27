@@ -271,14 +271,10 @@
         mesh.geometry.dispose();
         mesh.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
         mesh.userData.answer = value;
-
-        // Guardamos (o refrescamos) el ancho en userData, en caso de que se use en updateAnswerPositions
-        mesh.userData.panelWidth = newWidth;
       }
 
       // ====================
-      // Actualiza posición de los paneles
-      // (AHORA sin reorientarlos cada vez)
+      // Actualiza posición de los paneles (SIN reorientarlos cada vez)
       // ====================
       function updateAnswerPositions() {
         const radius = 0.8;
@@ -306,15 +302,14 @@
           angles.push(currentAngle);
         }
 
+        // NOTA: Aquí hemos eliminado la reorientación en cada update,
+        //       para que solo se orienten la 1ª vez (en createAnswerObjects).
         answers.forEach((mesh, i) => {
           let angle = angles[i];
           let x = radius * Math.sin(angle);
           let z = -radius * Math.cos(angle);
-          // Ajustamos posición
           mesh.position.set(x, mesh.position.y, z);
-
-          // *** Se ha ELIMINADO la reorientación aquí ***
-          // (así NO se reorienta cada vez que hay nueva pregunta)
+          // NO hay reorientación adicional aquí.
         });
       }
 
@@ -353,7 +348,6 @@
             '</select>' +
           '</div>';
 
-        // Ajuste: si es móvil, solo 'hit-test'; si no, también 'hand-tracking'
         const arButton = ARButton.createButton(renderer, { requiredFeatures: /Mobi|Android/i.test(navigator.userAgent) ? ['hit-test'] : ['hit-test', 'hand-tracking'] });
         if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
@@ -471,19 +465,17 @@
         beepPlayed = false;
       }
 
-      // Crea o actualiza los paneles de respuestas
+      // Crea o actualiza los paneles de respuestas sin sombras
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
-          // === SE ORIENTAN SOLO AQUI (primera vez) ===
           const minArc = 1.39626;
           const maxArc = Math.PI;
           let arcAngle = numAnswers <= 4 ? minArc : (numAnswers >= 10 ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc));
           const angleStart = -arcAngle / 2;
-          const angleEnd = arcArc = arcAngle / 2;
+          const angleEnd = arcAngle / 2;
           const radius = 0.8;
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
-            // Creamos paneles
             for (let i = 0; i < numAnswers; i++) {
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
@@ -497,7 +489,6 @@
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
 
-              // Generamos respuestas (1 correcta + resto falsas)
               const wrongAnswers = new Set();
               while (wrongAnswers.size < (numAnswers - 1)) {
                 const randomIndex = Math.floor(Math.random() * notes.length);
@@ -515,13 +506,13 @@
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
 
-              // Posición en el arco
+              // Posición inicial en arco + mirar a la cámara SOLO la primera vez
               const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
               const x = radius * Math.sin(angle);
               const z = -radius * Math.cos(angle);
               mesh.position.set(x, 0, z);
 
-              // **Aquí se orienta solo la primera vez**:
+              // Orientamos SOLO ahora, en la creación
               const cameraWorldPos = new THREE.Vector3();
               camera.getWorldPosition(cameraWorldPos);
               const lookAtPos = new THREE.Vector3(cameraWorldPos.x, mesh.position.y, cameraWorldPos.z);
@@ -532,11 +523,10 @@
               answers.push(mesh);
               scene.add(mesh);
 
-              // Guardamos transformaciones iniciales
+              // Guardamos la posición/rotación inicial
               originalAnswerTransforms.push({ position: mesh.position.clone(), rotation: mesh.rotation.clone() });
             }
           } else {
-            // (Si originalAnswerTransforms ya existe, se reusan)
             for (let i = 0; i < numAnswers; i++) {
               const canvas = document.createElement('canvas');
               canvas.width = 256 * resolutionFactor;
@@ -558,6 +548,7 @@
               }
               const answersArray = [correctAnswer, ...wrongAnswers];
               answersArray.sort(() => Math.random() - 0.5);
+
               ctx.fillText(answersArray[i], canvas.width / 2, canvas.height / 2);
               const texture = new THREE.CanvasTexture(canvas);
               texture.minFilter = THREE.LinearFilter;
@@ -566,7 +557,7 @@
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mesh = new THREE.Mesh(geometry, material);
 
-              // Recogemos la posición/rotación original
+              // Reutilizamos la posición y rotación guardadas, sin reorientar
               mesh.position.copy(originalAnswerTransforms[i].position);
               mesh.rotation.copy(originalAnswerTransforms[i].rotation);
 
@@ -577,7 +568,6 @@
             }
           }
         } else {
-          // en actualizaciones posteriores (nueva pregunta), SOLO cambia el texto
           const numAnswersExisting = selectedNumAnswers;
           const wrongAnswers = new Set();
           while (wrongAnswers.size < (numAnswersExisting - 1)) {
@@ -591,7 +581,8 @@
             updateAnswerPanel(answers[i], answersArray[i]);
           }
         }
-        // recolocamos en arco (SIN reorientar)
+        // Llamamos a updateAnswerPositions() para recolocarlas en el arco
+        // pero sin reorientarlas cada vez.
         updateAnswerPositions();
       }
 
