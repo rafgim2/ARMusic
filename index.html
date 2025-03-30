@@ -113,7 +113,7 @@
       // Número de respuestas
       let selectedNumAnswers = 4;
 
-      // Guardamos las transformaciones iniciales
+      // Guardamos las transformaciones iniciales de las respuestas
       let originalAnswerTransforms = null;
 
       // beep
@@ -285,35 +285,27 @@
       // =========================
       // 7) Crear y actualizar las respuestas
       // =========================
-
-      // NOTA IMPORTANTE:
-      //  - SOLO las orientamos al usuario la PRIMERA VEZ (initialCreation).
-      //  - Guardamos la posición/rotación para reusarla en preguntas posteriores.
-      //
+      // NOTA:
+      // - Solo orientamos las respuestas la primera vez (initialCreation).
+      // - Guardamos la posición/rotación en originalAnswerTransforms para usarlas en preguntas futuras.
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
-          // Calcular la posición y dirección inicial de la cámara
-          // (ya guardadas en sessionstart)
           const radius = 0.8;
           // El centro del arco estará a 0.8m delante de la cámara inicial
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.8);
-
-          // Ángulo total: repartimos en un arco
-          const minArc = 1.39626;  // ~80º
-          const maxArc = Math.PI;  // ~180º
+          const minArc = 1.39626;
+          const maxArc = Math.PI;
           let arcAngle = (numAnswers <= 4)
             ? minArc
             : (numAnswers >= 10)
                ? maxArc
                : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
           const angleStart = -arcAngle / 2;
-          const angleEnd   =  arcAngle / 2;
+          const angleEnd   = arcAngle / 2;
 
-          // Creamos las mallas
           if (originalAnswerTransforms === null) {
             originalAnswerTransforms = [];
             for (let i = 0; i < numAnswers; i++) {
-              // Panel "vacío" inicial
               const canvas = document.createElement('canvas');
               canvas.width  = 256 * resolutionFactor;
               canvas.height = 256 * resolutionFactor;
@@ -340,58 +332,45 @@
 
               // Calculamos el ángulo para el panel i
               const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
-              // Posición en un arco en el plano horizontal
               const xOffset = radius * Math.sin(angle);
               const zOffset = -radius * Math.cos(angle);
               
-              // Componemos la posición final = centerPos + offset
               const finalPos = new THREE.Vector3().copy(centerPos);
               finalPos.x += xOffset;
               finalPos.z += zOffset;
               
               mesh.position.copy(finalPos);
-
-              // SOLO aquí orientamos hacia la posición inicial de la cámara
+              // Orientamos hacia la posición inicial de la cámara
               mesh.lookAt(initialCameraPos);
 
-              // Lo añadimos a la escena
               answers.push(mesh);
               scene.add(mesh);
 
-              // Almacena la posición/rotación inicial
               originalAnswerTransforms.push({
                 position: mesh.position.clone(),
                 rotation: mesh.rotation.clone()
               });
             }
-          }
-          else {
-            // (Si por alguna razón se llamara de nuevo en un restart)
+          } else {
             for (let i = 0; i < numAnswers; i++) {
               const geometry = new THREE.PlaneGeometry(0.15, 0.15);
               const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
               const mesh = new THREE.Mesh(geometry, mat);
-              // Reutilizamos la transform guardada
               mesh.position.copy(originalAnswerTransforms[i].position);
               mesh.rotation.copy(originalAnswerTransforms[i].rotation);
               answers.push(mesh);
               scene.add(mesh);
             }
           }
+        } else {
+          // Solo actualizar el texto
         }
-        else {
-          // NO reorientamos; solo actualizamos el texto
-          // Las posiciones y rotaciones ya están.
-        }
-        // No reorientamos en updateAnswerPositions, pero sí la llamamos
-        // para recalcular anchos y recolocar si hiciera falta.
         updateAnswerObjectsPositions();
       }
 
-      // Actualiza solo el texto de las respuestas en cada pregunta
+      // Actualiza el texto de las respuestas y recoloca según el ancho
       function updateAnswerObjects() {
         const numAnswersExisting = selectedNumAnswers;
-        // Generar un set de respuestas falsas
         const wrongAnswers = new Set();
         while (wrongAnswers.size < (numAnswersExisting - 1)) {
           const rndIndex = Math.floor(Math.random() * notes.length);
@@ -403,29 +382,23 @@
         const answersArray = [correctAnswer, ...wrongAnswers];
         answersArray.sort(() => Math.random() - 0.5);
 
-        // Reutilizamos las mallas existentes y solo cambiamos su texto
         for (let i = 0; i < numAnswersExisting; i++) {
           updateAnswerPanel(answers[i], answersArray[i]);
         }
-
-        // No reorientamos: solo recolocar la posición según el ancho (si deseas)
         updateAnswerObjectsPositions();
       }
 
-      // =========================
-      // 8) Recolocar según ancho, SIN reorientar
-      // =========================
+      // Recoloca solo el eje X y Z según el ancho, manteniendo la altura original
       function updateAnswerObjectsPositions() {
-        const radius   = 0.8;
+        const radius = 0.8;
         const gapWorld = 0.05;
         const gapAngle = gapWorld / radius;
         const numPanels = answers.length;
 
-        // Calculamos la suma de ángulos que ocupa cada panel
         let panelAngles = [];
         answers.forEach(mesh => {
           let panelWidth = mesh.userData.panelWidth || mesh.geometry.parameters.width;
-          let halfAngle  = Math.asin((panelWidth / 2) / radius);
+          let halfAngle = Math.asin((panelWidth / 2) / radius);
           panelAngles.push(2 * halfAngle);
         });
 
@@ -442,30 +415,20 @@
           angles.push(currentAngle);
         }
 
-        // Recolocamos, pero SIN reorientar
         for (let i = 0; i < numPanels; i++) {
           const mesh = answers[i];
           const angle = angles[i];
-
-          // Calculamos un offset circular
           const xOffset = radius * Math.sin(angle);
           const zOffset = -radius * Math.cos(angle);
-
-          // No recalculamos "centerPos" real aquí, 
-          // porque ya las posicionamos en createAnswerObjects la 1ª vez
-          // (podríamos, si quisiéramos, pero no reorientamos)
-          // Para que no se muevan drásticamente, 
-          // usaremos la misma "altura" que tenían antes, 
-          // y la misma referencia de X/Z.
           let oldY = mesh.position.y;
-          mesh.position.x = (mesh.position.x >= 0) ? xOffset : xOffset;
-          mesh.position.z = (mesh.position.z >= 0) ? zOffset : zOffset;
+          mesh.position.x = xOffset;
+          mesh.position.z = zOffset;
           mesh.position.y = oldY;
         }
       }
 
       // =========================
-      // 9) Cuenta regresiva, Score, etc.
+      // 8) Cuenta regresiva, Score, etc.
       // =========================
       function startCountdown() {
         gameStartTime = performance.now();
@@ -542,7 +505,7 @@
       }
 
       // =========================
-      // 10) Lógica principal
+      // 9) Generar pregunta
       // =========================
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
@@ -558,6 +521,9 @@
         beepPlayed = false;
       }
 
+      // =========================
+      // 10) Inicializar escena y ARButton
+      // =========================
       function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -592,7 +558,6 @@
             '</select>' +
           '</div>';
 
-        // Activar ARButton
         const arButton = ARButton.createButton(renderer, {
           requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
             ? ['hit-test'] 
@@ -613,9 +578,8 @@
         overlay.appendChild(arButton);
         document.body.appendChild(overlay);
 
-        // Cuando empiece la sesión XR, guardamos la pos/dirección inicial
         renderer.xr.addEventListener('sessionstart', () => {
-          // Guardar posición y dirección de la cámara
+          // Guardar posición y dirección de la cámara inicial
           camera.getWorldPosition(initialCameraPos);
           camera.getWorldDirection(initialCameraDir);
           initialCameraDir.normalize();
@@ -704,6 +668,15 @@
       function render() {
         renderer.render(scene, camera);
 
+        // Efecto de flotación para las respuestas:
+        const t = performance.now();
+        answers.forEach((mesh, index) => {
+          if (originalAnswerTransforms && originalAnswerTransforms[index]) {
+            const baseY = originalAnswerTransforms[index].position.y;
+            mesh.position.y = baseY + 0.02 * Math.sin(t * 0.005 + index);
+          }
+        });
+
         if (gameReady && !countdownStarted) {
           startCountdown();
           const timerSound = document.getElementById('timerSound');
@@ -712,7 +685,7 @@
           countdownStarted = true;
         }
 
-        // Actualiza chispas
+        // Actualizar chispas
         const now = performance.now();
         for (let i = sparksSystems.length - 1; i >= 0; i--) {
           const sys = sparksSystems[i];
@@ -730,7 +703,7 @@
           let life = now - sys.startTime;
           if (life > 1700) {
             let fadeTime   = life - 1700;
-            let fadeFactor = Math.max(0,1 - (fadeTime/300));
+            let fadeFactor = Math.max(0, 1 - (fadeTime/300));
             sys.points.material.opacity = fadeFactor;
           }
           if (life > 2000) {
@@ -758,7 +731,7 @@
                 const indexTip = inputSource.hand.get('index-finger-tip');
                 if (indexTip) {
                   const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
-                  if (jointPose) {
+                  if(jointPose) {
                     interactionPoints.push(new THREE.Vector3(
                       jointPose.transform.position.x,
                       jointPose.transform.position.y,
@@ -776,7 +749,6 @@
           interactionPoints.push(cameraPos);
         }
 
-        // Si no terminó la partida, checamos colisiones con paneles
         if (!gameOver) {
           for (let panel of answers) {
             const panelPos = new THREE.Vector3();
@@ -815,7 +787,6 @@
             }
           }
         } else {
-          // Si terminó, comprobamos el botón "Reiniciar"
           if (restartButtonMesh) {
             const btnPos = new THREE.Vector3();
             restartButtonMesh.getWorldPosition(btnPos);
