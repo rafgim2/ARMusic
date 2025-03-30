@@ -357,7 +357,7 @@
         if (initialCreation) {
           const radius = 0.8;
           // Usamos la posición central de la cámara original
-          const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.8);
+          const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.6);
           const minArc = 1.39626;
           const maxArc = Math.PI;
           let arcAngle = (numAnswers <= 4) ? minArc : (numAnswers >= 10) ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
