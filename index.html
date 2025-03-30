@@ -1052,28 +1052,43 @@
       }
 
       function restartGame() {
-        if (finalMessageMesh)   scene.remove(finalMessageMesh);
-        if (restartButtonMesh)  scene.remove(restartButtonMesh);
-        if (questionMesh)       scene.remove(questionMesh);
-        if (questionImageMesh)  scene.remove(questionImageMesh);
-        if (leaderboardMesh) scene.remove(leaderboardMesh);
-        correctCount = 0;
-        wrongCount = 0;
-        gameStartTime = performance.now();
-        gameOver = false;
-        answers.forEach(a => scene.remove(a));
-        answers = [];
-        createAnswerObjects(selectedNumAnswers, true);
-        generateQuestion();
-        countdownStarted = false;
-        gameReady = true;
-        createScoreDisplay();
-        const timerSound = document.getElementById('timerSound');
-        timerSound.currentTime = 0;
-        timerSound.loop = false;
-        timerSound.play().catch(e => console.error(e));
-      }
+  if (finalMessageMesh) scene.remove(finalMessageMesh);
+  if (restartButtonMesh) scene.remove(restartButtonMesh);
+  if (questionMesh) scene.remove(questionMesh);
+  if (questionImageMesh) scene.remove(questionImageMesh);
 
+  // Eliminar tabla online y botones relacionados
+  if (leaderboardMesh) scene.remove(leaderboardMesh);
+  if (scrollUpButtonMesh) scene.remove(scrollUpButtonMesh);
+  if (scrollDownButtonMesh) scene.remove(scrollDownButtonMesh);
+
+  leaderboardMesh = null;
+  scrollUpButtonMesh = null;
+  scrollDownButtonMesh = null;
+  leaderboardResults = [];
+  scoreboardStartIndex = 0;
+  playerPosition = null;
+
+  correctCount = 0;
+  wrongCount = 0;
+  correctResponseTimes = [];
+
+  gameStartTime = performance.now();
+  gameOver = false;
+  answers.forEach(a => scene.remove(a));
+  answers = [];
+
+  createAnswerObjects(selectedNumAnswers, true);
+  generateQuestion();
+  countdownStarted = false;
+  gameReady = true;
+  createScoreDisplay();
+
+  const timerSound = document.getElementById('timerSound');
+  timerSound.currentTime = 0;
+  timerSound.loop = false;
+  timerSound.play().catch(e => console.error(e));
+}
       /***** Touch fallback y desbloqueo de audio en móviles *****/
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
