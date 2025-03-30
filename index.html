@@ -803,48 +803,18 @@
       function render() {
         renderer.render(scene, camera);
 
-        // Efecto de flotación para las respuestas
-        const t = performance.now();
-        answers.forEach((mesh, index) => {
-          if (originalAnswerTransforms && originalAnswerTransforms[index]) {
-            const baseY = originalAnswerTransforms[index].position.y;
-            mesh.position.y = baseY + 0.02 * Math.sin(t * 0.005 + index);
-          }
-        });
-
-        if (gameReady && !countdownStarted) {
-          startCountdown();
-          const timerSound = document.getElementById('timerSound');
-          timerSound.loop = false;
-          timerSound.play().catch(e => console.error(e));
-          countdownStarted = true;
+        // Actualizar efecto de flotación para respuestas solo si el juego sigue
+        if (!gameOver) {
+          const t = performance.now();
+          answers.forEach((mesh, index) => {
+            if (originalAnswerTransforms && originalAnswerTransforms[index]) {
+              const baseY = originalAnswerTransforms[index].position.y;
+              mesh.position.y = baseY + 0.02 * Math.sin(t * 0.005 + index);
+            }
+          });
         }
 
-        // Actualizar chispas
-        const now = performance.now();
-        for (let i = sparksSystems.length - 1; i >= 0; i--) {
-          const sys = sparksSystems[i];
-          const dt = (now - sys.lastUpdate) / 1000;
-          sys.lastUpdate = now;
-          const posArray = sys.points.geometry.attributes.position.array;
-          for (let j = 0; j < sys.velocities.length; j++) {
-            posArray[j * 3 + 0] += sys.velocities[j].x * dt;
-            posArray[j * 3 + 1] += sys.velocities[j].y * dt;
-            posArray[j * 3 + 2] += sys.velocities[j].z * dt;
-          }
-          sys.points.geometry.attributes.position.needsUpdate = true;
-          let life = now - sys.startTime;
-          if (life > 1700) {
-            let fadeTime = life - 1700;
-            let fadeFactor = Math.max(0, 1 - (fadeTime / 300));
-            sys.points.material.opacity = fadeFactor;
-          }
-          if (life > 2000) {
-            scene.remove(sys.points);
-            sparksSystems.splice(i, 1);
-          }
-        }
-
+        // Actualizar countdown y score solo si el juego está en curso
         if (!gameOver) {
           const remaining = updateCountdown();
           updateScoreDisplay();
@@ -853,103 +823,103 @@
           }
         }
 
-        // Detección de colisiones (modo XR)
-        const session = renderer.xr.getSession();
-        let interactionPoints = [];
-        if (session) {
-          const frame = renderer.xr.getFrame();
-          if (frame) {
-            for (const inputSource of session.inputSources) {
-              if (inputSource.hand) {
-                const indexTip = inputSource.hand.get('index-finger-tip');
-                if (indexTip) {
-                  const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
-                  if (jointPose) {
-                    interactionPoints.push(new THREE.Vector3(
-                      jointPose.transform.position.x,
-                      jointPose.transform.position.y,
-                      jointPose.transform.position.z
-                    ));
+        // Ejecutar detección de colisiones solo si hay sesión XR activa
+        if (renderer.xr.getSession()) {
+          const session = renderer.xr.getSession();
+          let interactionPoints = [];
+          if (session) {
+            const frame = renderer.xr.getFrame();
+            if (frame) {
+              for (const inputSource of session.inputSources) {
+                if (inputSource.hand) {
+                  const indexTip = inputSource.hand.get('index-finger-tip');
+                  if (indexTip) {
+                    const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
+                    if (jointPose) {
+                      interactionPoints.push(new THREE.Vector3(
+                        jointPose.transform.position.x,
+                        jointPose.transform.position.y,
+                        jointPose.transform.position.z
+                      ));
+                    }
                   }
                 }
               }
             }
           }
-        }
-        if (interactionPoints.length === 0) {
-          let camPos = new THREE.Vector3();
-          camera.getWorldPosition(camPos);
-          interactionPoints.push(camPos);
-        }
-
-        if (!gameOver) {
-          for (let panel of answers) {
-            const panelPos = new THREE.Vector3();
-            panel.getWorldPosition(panelPos);
-            for (const pt of interactionPoints) {
-              const dist = pt.distanceTo(panelPos);
-              if (dist < collisionThreshold && !hasCollided) {
-                hasCollided = true;
-                if (panel.userData.answer === correctAnswer) {
-                  // Registrar el tiempo de respuesta en milisegundos
-                  correctResponseTimes.push(performance.now() - currentQuestionStartTime);
-                  correctCount++;
-                  playSound('successSound');
-                  createSparksEffect(panel.position);
-                  if (questionMesh)       questionMesh.visible = false;
-                  if (questionImageMesh)  questionImageMesh.visible = false;
-                  answers.forEach(a => a.visible = false);
-                  setTimeout(() => {
-                    if (!gameOver) {
-                      generateQuestion();
-                      if (questionMesh)       questionMesh.visible = true;
-                      if (questionImageMesh)  questionImageMesh.visible = true;
-                      answers.forEach(a => a.visible = true);
-                    }
-                    hasCollided = false;
-                  }, 1000);
-                } else {
-                  wrongCount++;
-                  playSound('errorSound');
-                  answers.forEach(a => a.material.color.set(0xff0000));
-                  setTimeout(() => {
-                    answers.forEach(a => a.material.color.set(0xffffff));
-                    hasCollided = false;
-                  }, 500);
+          if (interactionPoints.length === 0) {
+            let camPos = new THREE.Vector3();
+            camera.getWorldPosition(camPos);
+            interactionPoints.push(camPos);
+          }
+          if (!gameOver) {
+            for (let panel of answers) {
+              const panelPos = new THREE.Vector3();
+              panel.getWorldPosition(panelPos);
+              for (const pt of interactionPoints) {
+                const dist = pt.distanceTo(panelPos);
+                if (dist < collisionThreshold && !hasCollided) {
+                  hasCollided = true;
+                  if (panel.userData.answer === correctAnswer) {
+                    correctResponseTimes.push(performance.now() - currentQuestionStartTime);
+                    correctCount++;
+                    playSound('successSound');
+                    createSparksEffect(panel.position);
+                    if (questionMesh)       questionMesh.visible = false;
+                    if (questionImageMesh)  questionImageMesh.visible = false;
+                    answers.forEach(a => a.visible = false);
+                    setTimeout(() => {
+                      if (!gameOver) {
+                        generateQuestion();
+                        if (questionMesh)       questionMesh.visible = true;
+                        if (questionImageMesh)  questionImageMesh.visible = true;
+                        answers.forEach(a => a.visible = true);
+                      }
+                      hasCollided = false;
+                    }, 1000);
+                  } else {
+                    wrongCount++;
+                    playSound('errorSound');
+                    answers.forEach(a => a.material.color.set(0xff0000));
+                    setTimeout(() => {
+                      answers.forEach(a => a.material.color.set(0xffffff));
+                      hasCollided = false;
+                    }, 500);
+                  }
+                  break;
                 }
-                break;
               }
             }
-          }
-        } else {
-          // Modo final: detección de colisiones para botones de reinicio y scroll
-          let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
-          for (const btn of finalButtons) {
-            if (!btn.visible) continue;
-            const btnPos = new THREE.Vector3();
-            btn.getWorldPosition(btnPos);
-            for (const pt of interactionPoints) {
-              const dist = pt.distanceTo(btnPos);
-              if (dist < collisionThreshold && !hasCollided) {
-                hasCollided = true;
-                if (btn === restartButtonMesh) {
-                  playSound('successSound');
-                  createSparksEffect(btn.position);
-                  btn.visible = false;
-                  setTimeout(() => {
-                    restartGame();
-                    hasCollided = false;
-                  }, 1000);
-                } else if (btn === scrollUpButtonMesh) {
-                  scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
-                } else if (btn === scrollDownButtonMesh) {
-                  scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
+          } else {
+            // Si el juego ha terminado, detectar colisiones en botones del leaderboard
+            let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
+            for (const btn of finalButtons) {
+              if (!btn.visible) continue;
+              const btnPos = new THREE.Vector3();
+              btn.getWorldPosition(btnPos);
+              for (const pt of interactionPoints) {
+                const dist = pt.distanceTo(btnPos);
+                if (dist < collisionThreshold && !hasCollided) {
+                  hasCollided = true;
+                  if (btn === restartButtonMesh) {
+                    playSound('successSound');
+                    createSparksEffect(btn.position);
+                    btn.visible = false;
+                    setTimeout(() => {
+                      restartGame();
+                      hasCollided = false;
+                    }, 1000);
+                  } else if (btn === scrollUpButtonMesh) {
+                    scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
+                    drawLeaderboardSegment();
+                    setTimeout(() => { hasCollided = false; }, 500);
+                  } else if (btn === scrollDownButtonMesh) {
+                    scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
+                    drawLeaderboardSegment();
+                    setTimeout(() => { hasCollided = false; }, 500);
+                  }
+                  return;
                 }
-                return;
               }
             }
           }
@@ -1021,7 +991,24 @@
         scoreboardStartIndex = playerIndex - Math.floor(pageSize / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) scoreboardStartIndex = 0;
+        
+        // Crear el leaderboard
         createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition);
+
+        // Reposicionar el leaderboard en función de la posición actual de la cámara
+        if (renderer.xr.getSession()) {
+          let finalPos = new THREE.Vector3();
+          camera.getWorldPosition(finalPos);
+          let forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
+          finalPos.add(forward.multiplyScalar(1.2)); // Ubicarlo a 1.2 unidades delante
+          leaderboardMesh.position.copy(finalPos);
+          leaderboardMesh.lookAt(finalPos.clone().add(forward));
+        } else {
+          // Si no hay sesión XR, se retira el leaderboard para evitar que se ancle en 2D
+          scene.remove(leaderboardMesh);
+        }
       }
 
       function createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition) {
@@ -1042,6 +1029,7 @@
         const lbMaterial = new THREE.MeshBasicMaterial({ map: lbTexture, transparent: true });
         leaderboardMesh = new THREE.Mesh(lbGeometry, lbMaterial);
         leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth };
+        // Posición inicial (se reposiciona en endGame si hay sesión XR)
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
 
@@ -1230,7 +1218,6 @@
           hasCollided = true;
           if (!gameOver) {
             if (objHit.userData.answer === correctAnswer) {
-              // Registrar tiempo de respuesta para respuesta correcta (modo touch)
               correctResponseTimes.push(performance.now() - currentQuestionStartTime);
               correctCount++;
               playSound('successSound');
@@ -1293,7 +1280,6 @@
         animate();
       }).catch(err => {
         console.error("Error al pre-cargar imágenes:", err);
-        // Si falla, igual se inicia
         init();
         animate();
       });
