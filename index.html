@@ -49,7 +49,7 @@
         border-radius: 20px;
         max-width: 15%;
       }
-      /* Estilo idéntico al de multiplicaciones para la tabla preview */
+      /* Estilos para la tabla preview, con líneas (bordes) iguales al código de multiplicaciones */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -61,6 +61,15 @@
         border: 1px solid #000;
         border-radius: 6px;
         padding: 4px;
+      }
+      #leaderboardPreview table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      #leaderboardPreview th, #leaderboardPreview td {
+        border: 1px solid #666;
+        padding: 4px;
+        text-align: center;
       }
       @media (orientation: portrait) {
         #overlay img {
@@ -77,7 +86,7 @@
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMultimusic/main/beep.wav" preload="auto"></audio>
     
     <script type="module">
-      /***** 1) Firebase y Firestore (para Notas, usando "Musicleaderboard_X") *****/
+      /***** 1) Firebase y Firestore (para Notas, usando colecciones "Musicleaderboard_X") *****/
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
       import { 
@@ -192,6 +201,13 @@
       let currentQuestionStartTime = 0;
       let correctResponseTimes = []; // tiempos en ms
 
+      /***** Variables para la tabla final en AR *****/
+      let leaderboardMesh = null;
+      let leaderboardResults = [];
+      let scoreboardStartIndex = 0;
+      const pageSize = 10;
+      let playerPosition = null;
+
       /***** 2.3 Funciones auxiliares: dibujo de rectángulo redondeado *****/
       function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
@@ -249,6 +265,7 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
+          // Posición original de la pregunta en Notas Musicales
           questionMesh.position.set(0, 0.5, -0.78);
           scene.add(questionMesh);
         }
@@ -291,6 +308,7 @@
         const geometry = new THREE.PlaneGeometry(0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
         questionImageMesh = new THREE.Mesh(geometry, material);
+        // Posición original de la imagen en Notas Musicales
         questionImageMesh.position.set(0, 0.25, -0.82);
         scene.add(questionImageMesh);
       }
@@ -339,14 +357,14 @@
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.8);
           const minArc = 1.39626;
           const maxArc = Math.PI;
-          let arcAngle = (numAnswers <= 4) ? minArc : (numAnswers >= 10) ? maxArc : minArc + ((numAnswers - 4)/(10-4))*(maxArc-minArc);
-          const angleStart = -arcAngle/2;
-          const angleEnd = arcAngle/2;
+          let arcAngle = (numAnswers <= 4) ? minArc : (numAnswers >= 10) ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
+          const angleStart = -arcAngle / 2;
+          const angleEnd = arcAngle / 2;
 
           originalAnswerTransforms = [];
           for (let i = 0; i < numAnswers; i++) {
             const canvas = document.createElement('canvas');
-            canvas.width = 256 * resolutionFactor;
+            canvas.width  = 256 * resolutionFactor;
             canvas.height = 256 * resolutionFactor;
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -365,7 +383,7 @@
             const geometry = new THREE.PlaneGeometry(0.15, 0.15);
             const mesh = new THREE.Mesh(geometry, material);
 
-            const angle = angleStart + (angleEnd - angleStart) * (i/(numAnswers-1));
+            const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
             const xOffset = radius * Math.sin(angle);
             const zOffset = -radius * Math.cos(angle);
             const finalPos = new THREE.Vector3().copy(centerPos);
@@ -455,7 +473,7 @@
         return new THREE.CanvasTexture(canvas);
       }
 
-      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta
+      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
@@ -489,7 +507,7 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Overlay inicial con imagen, link, selector de respuestas, leaderboard preview y input de nombre
+        // Overlay inicial con imagen, link, selector de respuestas, tabla preview y input de nombre
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
@@ -568,6 +586,7 @@
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         countdownMesh = new THREE.Mesh(geometry, material);
+        // Posición original del countdown en Notas Musicales
         countdownMesh.position.set(0, 0.7, -0.8);
         countdownMesh.userData = { canvas, ctx, texture };
         scene.add(countdownMesh);
@@ -584,6 +603,7 @@
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         scoreMesh = new THREE.Mesh(geometry, material);
+        // Posición original del score en Notas Musicales
         scoreMesh.position.set(0, -0.2, -0.82);
         scoreMesh.userData = { canvas, ctx, texture };
         scene.add(scoreMesh);
@@ -623,7 +643,7 @@
         texture.needsUpdate = true;
       }
 
-      // 2.12 Bucle principal y renderizado (incluye detección de colisiones)
+      // 2.12 Bucle principal y renderizado (detección de colisiones)
       function animate() {
         renderer.setAnimationLoop(render);
       }
@@ -677,7 +697,7 @@
           }
         }
 
-        // Detección de colisiones mediante XR (manos/cámara)
+        // Detección de colisiones (XR: manos o cámara)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session && xrFrame) {
@@ -749,7 +769,7 @@
         }
       }
 
-      // 2.13 Finalizar juego y subir puntaje online
+      // 2.13 Función para crear la tabla final (leaderboard) en AR
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -787,10 +807,145 @@
             timestamp: serverTimestamp()
           });
         }
-        console.log("Puntaje final subido:", finalScore);
+        // Después de subir el puntaje, se consulta y se muestra la tabla completa en AR
+        let qLeaderboard = query(
+          collection(db, collectionName),
+          orderBy("score", "desc")
+        );
+        let querySnapshot;
+        try {
+          querySnapshot = await getDocs(qLeaderboard);
+        } catch (err) {
+          console.error("Error consultando el leaderboard:", err);
+          return;
+        }
+        leaderboardResults = [];
+        let idx = 0;
+        querySnapshot.forEach((docSnap) => {
+          let data = docSnap.data();
+          leaderboardResults.push({ ...data, _index: idx });
+          idx++;
+        });
+        let playerIndex = leaderboardResults.findIndex(
+          (r) => r.name === playerName && r.score === finalScore
+        );
+        playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
+        scoreboardStartIndex = playerIndex - Math.floor(pageSize / 2);
+        if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
+        if (scoreboardStartIndex >= leaderboardResults.length) {
+          scoreboardStartIndex = 0;
+        }
+        createLeaderboardMesh();
+        drawLeaderboardSegment();
       }
 
-      /***** 2.14 Evento táctil para desbloquear audio *****/
+      // Función para crear la malla del leaderboard final en AR
+      function createLeaderboardMesh() {
+        if (leaderboardMesh) scene.remove(leaderboardMesh);
+        if (restartButtonMesh) scene.remove(restartButtonMesh);
+        leaderboardMesh = null;
+        // Canvas dummy para el leaderboard
+        const dummyCanvas = document.createElement('canvas');
+        dummyCanvas.width = 512;
+        dummyCanvas.height = 512;
+        const ctx = dummyCanvas.getContext('2d');
+        const lbTexture = new THREE.CanvasTexture(dummyCanvas);
+        lbTexture.minFilter = THREE.LinearFilter;
+        lbTexture.magFilter = THREE.LinearFilter;
+        const planeWidth = 1.2;
+        const planeHeight = 1.0;
+        const lbGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const lbMaterial = new THREE.MeshBasicMaterial({ map: lbTexture, transparent: true });
+        leaderboardMesh = new THREE.Mesh(lbGeometry, lbMaterial);
+        leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth, planeHeight };
+        // Posicionar a z=-1.2 (igual que multiplicaciones)
+        leaderboardMesh.position.set(0, 0, -1.2);
+        scene.add(leaderboardMesh);
+
+        // Botón de reinicio en AR (se ubica un poco más cerca, en z=-1.1)
+        restartButtonMesh = createButton("Reiniciar");
+        restartButtonMesh.position.set(0, -0.8, -1.1);
+        scene.add(restartButtonMesh);
+      }
+
+      // Función para dibujar el segmento del leaderboard final
+      function drawLeaderboardSegment() {
+        if (!leaderboardMesh) return;
+        const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
+        const subset = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + pageSize);
+        const lineHeight = 40 * resolutionFactor;
+        const extraLines = 4;
+        const canvasWidth = 512 * resolutionFactor;
+        const canvasHeight = lineHeight * (subset.length + extraLines);
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = 'Bold ' + (28 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Tabla de Clasificación", canvasWidth / 2, lineHeight);
+        // Cabeceras
+        const xPosPos = 0.10 * canvasWidth;
+        const xPosName = 0.40 * canvasWidth;
+        const xPosScore = 0.75 * canvasWidth;
+        let startY = lineHeight * 2.5;
+        ctx.font = 'Bold ' + (24 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "left";
+        ctx.fillText("Pos", xPosPos, startY);
+        ctx.fillText("Nombre", xPosName, startY);
+        ctx.fillText("Puntos", xPosScore, startY);
+        let yPos = startY + (1.5 * lineHeight);
+        for (let i = 0; i < subset.length; i++) {
+          const data = subset[i];
+          const realPos = data._index + 1;
+          if (playerPosition !== null && realPos === playerPosition) {
+            ctx.fillStyle = "green";
+            ctx.fillRect(0, yPos - lineHeight * 0.6, canvasWidth, lineHeight);
+            ctx.fillStyle = "#FFFFFF";
+          } else {
+            ctx.fillStyle = "#FFFFFF";
+          }
+          ctx.fillText(String(realPos), xPosPos, yPos);
+          ctx.fillText(data.name, xPosName, yPos);
+          ctx.fillText(String(data.score), xPosScore, yPos);
+          yPos += lineHeight;
+        }
+        if (playerPosition !== null) {
+          ctx.textAlign = "center";
+          ctx.fillText(`Tu posición: ${playerPosition}`, canvasWidth / 2, yPos + lineHeight);
+        }
+        texture.needsUpdate = true;
+        const planeHeight = planeWidth * (canvasHeight / canvasWidth);
+        leaderboardMesh.geometry.dispose();
+        leaderboardMesh.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        leaderboardMesh.position.set(0, 0, -1.2);
+        restartButtonMesh.position.set(0, -planeHeight * 0.6, -1.1);
+      }
+
+      // Función para crear un botón en AR
+      function createButton(text, planeWidth = 0.3, planeHeight = 0.1) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256 * resolutionFactor;
+        canvas.height = 64 * resolutionFactor;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#007BFF";
+        drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 10 * resolutionFactor);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = 'Bold ' + (18 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, canvas.width/2, canvas.height/2);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        const geom = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        return new THREE.Mesh(geom, mat);
+      }
+
+      // 2.14 Evento táctil para desbloquear audio (iOS/Android)
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
         const errorEl = document.getElementById('errorSound');
@@ -802,7 +957,7 @@
         });
       }, { once: true });
 
-      /***** 2.15 Evento táctil para raycasting en dispositivos móviles *****/
+      // 2.15 Evento táctil para raycasting (simula colisión con paneles)
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -811,15 +966,12 @@
         const mouseVector = new THREE.Vector2(x, y);
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouseVector, camera);
-
         let objectsToIntersect = [];
         if (!gameOver) {
           objectsToIntersect = answers;
         } else {
-          // Si el juego terminó, se podrían incluir botones de reinicio u otros.
           if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
         }
-
         const intersects = raycaster.intersectObjects(objectsToIntersect);
         if (intersects.length > 0 && !hasCollided) {
           const panel = intersects[0].object;
