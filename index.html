@@ -5,7 +5,7 @@
     <title>AR Notas Musicales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-      /* Estilos para el overlay inicial (basados en el código original de AR Notas Musicales y el ejemplo de multiplicaciones) */
+      /* Estilos para el overlay inicial */
       body {
         margin: 0;
         font-family: sans-serif;
@@ -87,7 +87,7 @@
     <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/acierto.wav" preload="auto"></audio>
     <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
     <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/timer7.mp3" preload="auto"></audio>
-    <!-- Usamos errorSound para "beep" en condiciones específicas -->
+    <!-- Se usará el mismo archivo para "beep" en condiciones específicas -->
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
 
     <script type="module">
@@ -113,7 +113,7 @@
       const analytics = getAnalytics(appFirebase);
       const db = getFirestore(appFirebase);
 
-      /***** 2) Función para actualizar el leaderboard preview en el overlay *****/
+      /***** 2) Función para actualizar el leaderboard preview *****/
       async function updateLeaderboardPreview(numAnswers) {
         const collectionName = `Musicleaderboard_${numAnswers}`;
         try {
@@ -198,9 +198,12 @@
       let countdownCanvas, countdownCtx, countdownTexture, countdownMesh;
       let scoreCanvas, scoreCtx, scoreTexture, scoreMesh;
 
-      // Botones y mensajes finales
-      let restartButtonMesh = null, finalMessageMesh = null;
-      let scrollUpButtonMesh = null, scrollDownButtonMesh = null;
+      // Botones y mensajes finales, y botones de scroll
+      let restartButtonMesh = null;
+      let leaderboardMesh = null;
+      let scrollUpButtonMesh = null;
+      let scrollDownButtonMesh = null;
+      let finalMessageMesh = null;
 
       // Número de respuestas
       let selectedNumAnswers = 4;
@@ -228,6 +231,26 @@
       let currentQuestionStartTime = 0;
       let correctResponseTimes = [];
       let playerName = "";
+
+      /***** Pre-cargar imágenes de notas *****/
+      const preloadedNoteTextures = {};
+      function preloadNoteImages() {
+        return new Promise((resolve, reject) => {
+          let loadedCount = 0;
+          const total = notes.length;
+          const loader = new THREE.TextureLoader();
+          notes.forEach(noteObj => {
+            loader.load("https://raw.githubusercontent.com/rafgim2/ARMusic/main/" + noteObj.image, texture => {
+              preloadedNoteTextures[noteObj.note] = texture;
+              loadedCount++;
+              if (loadedCount === total) resolve();
+            }, undefined, err => {
+              console.error("Error cargando imagen:", noteObj.image, err);
+              reject(err);
+            });
+          });
+        });
+      }
 
       /***** Función para dibujar un rectángulo redondeado *****/
       function drawRoundedRect(ctx, x, y, width, height, radius) {
@@ -330,40 +353,44 @@
           scene.remove(questionImageMesh);
           questionImageMesh = null;
         }
-        const loader = new THREE.TextureLoader();
-        const baseURL = "https://raw.githubusercontent.com/rafgim2/ARMusic/main/";
-        loader.load(baseURL + questionNoteImage, function(texture) {
-          const canvas = document.createElement('canvas');
-          const canvasWidth = 256;
-          const canvasHeight = 256;
-          canvas.width = canvasWidth;
-          canvas.height = canvasHeight;
-          const ctx = canvas.getContext('2d');
-          const radius = 20;
-          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(radius, 0);
-          ctx.lineTo(canvasWidth - radius, 0);
-          ctx.quadraticCurveTo(canvasWidth, 0, canvasWidth, radius);
-          ctx.lineTo(canvasWidth, canvasHeight - radius);
-          ctx.quadraticCurveTo(canvasWidth, canvasHeight, canvasWidth - radius, canvasHeight);
-          ctx.lineTo(radius, canvasHeight);
-          ctx.quadraticCurveTo(0, canvasHeight, 0, canvasHeight - radius);
-          ctx.lineTo(0, radius);
-          ctx.quadraticCurveTo(0, 0, radius, 0);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(texture.image, 0, 0, canvasWidth, canvasHeight);
-          ctx.restore();
-          
-          const roundedTexture = new THREE.CanvasTexture(canvas);
-          const geometry = new THREE.PlaneGeometry(0.2, 0.2);
-          const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
-          questionImageMesh = new THREE.Mesh(geometry, material);
-          questionImageMesh.position.set(0, 0.25, -0.82);
-          scene.add(questionImageMesh);
-        });
+        // Usamos la textura pre-cargada si existe; de lo contrario, cargamos
+        let texture;
+        if (preloadedNoteTextures[correctAnswer]) {
+          texture = preloadedNoteTextures[correctAnswer];
+        } else {
+          const loader = new THREE.TextureLoader();
+          texture = loader.load("https://raw.githubusercontent.com/rafgim2/ARMusic/main/" + questionNoteImage);
+        }
+        const canvas = document.createElement('canvas');
+        const canvasWidth = 256;
+        const canvasHeight = 256;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext('2d');
+        const radius = 20;
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(canvasWidth - radius, 0);
+        ctx.quadraticCurveTo(canvasWidth, 0, canvasWidth, radius);
+        ctx.lineTo(canvasWidth, canvasHeight - radius);
+        ctx.quadraticCurveTo(canvasWidth, canvasHeight, canvasWidth - radius, canvasHeight);
+        ctx.lineTo(radius, canvasHeight);
+        ctx.quadraticCurveTo(0, canvasHeight, 0, canvasHeight - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(texture.image, 0, 0, canvasWidth, canvasHeight);
+        ctx.restore();
+
+        const roundedTexture = new THREE.CanvasTexture(canvas);
+        const geometry = new THREE.PlaneGeometry(0.2, 0.2);
+        const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
+        questionImageMesh = new THREE.Mesh(geometry, material);
+        questionImageMesh.position.set(0, 0.25, -0.82);
+        scene.add(questionImageMesh);
       }
 
       /***** Funciones para las respuestas *****/
@@ -552,7 +579,7 @@
         scene.add(countdownMesh);
       }
 
-      // Se reproducirá el "beep" solo si han pasado 10 seg. después de terminar el juego
+      // Se reproducirá "beep" solo si han pasado 10 seg. después de terminar el juego
       function updateCountdown() {
         const elapsed = (performance.now() - gameStartTime) / 1000;
         const remaining = gameDuration - elapsed;
@@ -619,7 +646,6 @@
         updateQuestionImage();
         updateAnswerObjects();
         beepPlayed = false;
-        // Registrar el tiempo de inicio de esta pregunta
         currentQuestionStartTime = performance.now();
       }
 
@@ -669,7 +695,7 @@
           arButton.parentNode.removeChild(arButton);
         }
         arButton.style.position = 'absolute';
-        arButton.style.top = '450px';
+        arButton.style.top = '600px';
         arButton.style.left = '100%';
         arButton.style.transform = 'translateX(0%)';
         arButton.style.width = '150px';
@@ -714,7 +740,7 @@
       function createCircleTexture() {
         const size = 128;
         const canvas = document.createElement('canvas');
-        canvas.width = size;
+        canvas.width  = size;
         canvas.height = size;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, size, size);
@@ -823,7 +849,7 @@
           }
         }
 
-        // Detección de colisiones (usando XR; si no hay, se usa la posición de la cámara)
+        // Detección de colisiones (XR)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session) {
@@ -861,7 +887,7 @@
               if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
-                  // Registrar tiempo de respuesta de la pregunta correcta
+                  // Registrar tiempo de respuesta para respuesta correcta
                   correctResponseTimes.push(performance.now() - currentQuestionStartTime);
                   correctCount++;
                   playSound('successSound');
@@ -892,10 +918,10 @@
             }
           }
         } else {
-          // Si el juego ha terminado, gestionar colisiones con los botones (reiniciar, scroll arriba y abajo)
+          // Cuando el juego ha finalizado, se detectan colisiones con los botones (reiniciar, scroll)
           let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
           for (const btn of finalButtons) {
-            if (!btn || !btn.visible) continue;
+            if (!btn.visible) continue;
             const btnPos = new THREE.Vector3();
             btn.getWorldPosition(btnPos);
             for (const pt of interactionPoints) {
@@ -935,13 +961,13 @@
         if (scoreMesh)          scene.remove(scoreMesh);
         answers.forEach(panel => scene.remove(panel));
 
-        // Calcular la media de tiempos de respuesta en segundos
+        // Calcular la media de tiempos de respuesta (en segundos)
         let avgTime = 0;
         if (correctResponseTimes.length > 0) {
           let sum = correctResponseTimes.reduce((acc, t) => acc + t, 0);
           avgTime = sum / correctResponseTimes.length / 1000;
         }
-        // Puntaje final: (aciertos - fallos) menos la media de tiempos de respuesta
+        // Puntaje final: (aciertos - fallos) menos la media de tiempos
         const rawScore = (correctCount - wrongCount) - avgTime;
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
@@ -987,19 +1013,17 @@
         });
         let playerIndex = leaderboardResults.findIndex(r => r.name === playerName && r.score === finalScore);
         let playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
-        let scoreboardStartIndex = playerIndex - Math.floor(10 / 2);
+        scoreboardStartIndex = playerIndex - Math.floor(10 / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) scoreboardStartIndex = 0;
         createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition);
       }
 
       function createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition) {
-        // Eliminar elementos previos
         if (restartButtonMesh) scene.remove(restartButtonMesh);
-        if (finalMessageMesh)  scene.remove(finalMessageMesh);
         if (scrollUpButtonMesh) scene.remove(scrollUpButtonMesh);
         if (scrollDownButtonMesh) scene.remove(scrollDownButtonMesh);
-
+        if (leaderboardMesh) scene.remove(leaderboardMesh);
         const dummyCanvas = document.createElement('canvas');
         dummyCanvas.width = 512;
         dummyCanvas.height = 512;
@@ -1065,7 +1089,7 @@
         leaderboardMesh.geometry.dispose();
         leaderboardMesh.geometry = new THREE.PlaneGeometry(planeWidth, newPlaneHeight);
 
-        // Botón "Reiniciar"
+        // Botón Reiniciar
         restartButtonMesh = createButton("Reiniciar");
         restartButtonMesh.position.set(0, -newPlaneHeight * 0.6, -1.1);
         scene.add(restartButtonMesh);
@@ -1082,13 +1106,13 @@
       }
 
       function restartGame() {
-        if (finalMessageMesh)   scene.remove(finalMessageMesh);
-        if (restartButtonMesh)  scene.remove(restartButtonMesh);
+        if (finalMessageMesh) scene.remove(finalMessageMesh);
+        if (restartButtonMesh) scene.remove(restartButtonMesh);
+        if (questionMesh) scene.remove(questionMesh);
+        if (questionImageMesh) scene.remove(questionImageMesh);
+        if (leaderboardMesh) scene.remove(leaderboardMesh);
         if (scrollUpButtonMesh) scene.remove(scrollUpButtonMesh);
         if (scrollDownButtonMesh) scene.remove(scrollDownButtonMesh);
-        if (questionMesh)       scene.remove(questionMesh);
-        if (questionImageMesh)  scene.remove(questionImageMesh);
-        if (leaderboardMesh)    scene.remove(leaderboardMesh);
 
         leaderboardMesh = null;
         scrollUpButtonMesh = null;
@@ -1097,7 +1121,7 @@
 
         correctCount = 0;
         wrongCount = 0;
-        correctResponseTimes = []; // Reinicia los tiempos de respuesta
+        correctResponseTimes = [];
         gameStartTime = performance.now();
         gameOver = false;
         answers.forEach(a => scene.remove(a));
@@ -1148,7 +1172,7 @@
           const objHit = intersects[0].object;
           hasCollided = true;
           if (!gameOver) {
-            // En modo juego, la lógica de respuesta ya se gestiona en render()
+            // En modo de juego, ya se gestiona la respuesta
           } else {
             if (objHit === restartButtonMesh) {
               playSound('successSound');
@@ -1159,6 +1183,7 @@
                 hasCollided = false;
               }, 1000);
             } else if (objHit === scrollUpButtonMesh) {
+              // Actualiza la posición de la tabla
               scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
@@ -1180,8 +1205,16 @@
       }
 
       /***** Lanzar AR *****/
-      init();
-      animate();
+      // Primero pre-cargamos las imágenes de todas las notas para que no haya retardo
+      preloadNoteImages().then(() => {
+        init();
+        animate();
+      }).catch(err => {
+        console.error("Error al pre-cargar imágenes:", err);
+        // Si falla, igualmente iniciamos
+        init();
+        animate();
+      });
     </script>
   </body>
 </html>
