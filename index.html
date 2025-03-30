@@ -49,7 +49,7 @@
         border-radius: 20px;
         max-width: 15%;
       }
-      /* Estilos para la tabla preview, con líneas (bordes) iguales al código de multiplicaciones */
+      /* Estilos para la tabla preview, igual que en multiplicaciones */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -86,7 +86,7 @@
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMultimusic/main/beep.wav" preload="auto"></audio>
     
     <script type="module">
-      /***** 1) Firebase y Firestore (para Notas, usando colecciones "Musicleaderboard_X") *****/
+      /***** 1) Firebase y Firestore (colecciones "Musicleaderboard_X") *****/
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
       import { 
@@ -189,6 +189,8 @@
       let gameOver = false;
       let countdownMesh = null, scoreMesh = null;
       let restartButtonMesh = null;
+      let scrollUpButtonMesh = null;
+      let scrollDownButtonMesh = null;
       let originalAnswerTransforms = null;
       let beepPlayed = false;
       let gameReady = false;
@@ -199,9 +201,9 @@
       let selectedNumAnswers = 4;
       // Medición de tiempos de respuesta
       let currentQuestionStartTime = 0;
-      let correctResponseTimes = []; // tiempos en ms
+      let correctResponseTimes = [];
 
-      /***** Variables para la tabla final en AR *****/
+      // Variables para la tabla final en AR
       let leaderboardMesh = null;
       let leaderboardResults = [];
       let scoreboardStartIndex = 0;
@@ -265,7 +267,7 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
-          // Posición original de la pregunta en Notas Musicales
+          // Posición original de la pregunta (sin modificar)
           questionMesh.position.set(0, 0.5, -0.78);
           scene.add(questionMesh);
         }
@@ -308,7 +310,7 @@
         const geometry = new THREE.PlaneGeometry(0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
         questionImageMesh = new THREE.Mesh(geometry, material);
-        // Posición original de la imagen en Notas Musicales
+        // Posición original de la imagen
         questionImageMesh.position.set(0, 0.25, -0.82);
         scene.add(questionImageMesh);
       }
@@ -354,6 +356,7 @@
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
+          // Usamos la posición central de la cámara original
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.8);
           const minArc = 1.39626;
           const maxArc = Math.PI;
@@ -473,7 +476,7 @@
         return new THREE.CanvasTexture(canvas);
       }
 
-      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro
+      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
@@ -586,7 +589,7 @@
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         countdownMesh = new THREE.Mesh(geometry, material);
-        // Posición original del countdown en Notas Musicales
+        // Posición original del countdown
         countdownMesh.position.set(0, 0.7, -0.8);
         countdownMesh.userData = { canvas, ctx, texture };
         scene.add(countdownMesh);
@@ -603,7 +606,7 @@
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         scoreMesh = new THREE.Mesh(geometry, material);
-        // Posición original del score en Notas Musicales
+        // Posición original del score
         scoreMesh.position.set(0, -0.2, -0.82);
         scoreMesh.userData = { canvas, ctx, texture };
         scene.add(scoreMesh);
@@ -769,7 +772,7 @@
         }
       }
 
-      // 2.13 Función para crear la tabla final (leaderboard) en AR
+      // 2.13 Función para crear y mostrar la tabla final (leaderboard) en AR
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -807,7 +810,7 @@
             timestamp: serverTimestamp()
           });
         }
-        // Después de subir el puntaje, se consulta y se muestra la tabla completa en AR
+        // Consultar y preparar el leaderboard completo para mostrar en AR
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -839,12 +842,14 @@
         drawLeaderboardSegment();
       }
 
-      // Función para crear la malla del leaderboard final en AR
+      // Función para crear la malla del leaderboard final en AR (incluye botones de reinicio y scroll)
       function createLeaderboardMesh() {
-        if (leaderboardMesh) scene.remove(leaderboardMesh);
-        if (restartButtonMesh) scene.remove(restartButtonMesh);
-        leaderboardMesh = null;
-        // Canvas dummy para el leaderboard
+        if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
+        if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
+        if (scrollUpButtonMesh) { scene.remove(scrollUpButtonMesh); scrollUpButtonMesh = null; }
+        if (scrollDownButtonMesh) { scene.remove(scrollDownButtonMesh); scrollDownButtonMesh = null; }
+
+        // Canvas dummy para la tabla
         const dummyCanvas = document.createElement('canvas');
         dummyCanvas.width = 512;
         dummyCanvas.height = 512;
@@ -853,22 +858,31 @@
         lbTexture.minFilter = THREE.LinearFilter;
         lbTexture.magFilter = THREE.LinearFilter;
         const planeWidth = 1.2;
-        const planeHeight = 1.0;
+        const planeHeight = 1.0; // se ajustará según el canvas
         const lbGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
         const lbMaterial = new THREE.MeshBasicMaterial({ map: lbTexture, transparent: true });
         leaderboardMesh = new THREE.Mesh(lbGeometry, lbMaterial);
         leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth, planeHeight };
-        // Posicionar a z=-1.2 (igual que multiplicaciones)
+        // Posicionar en z=-1.2
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
 
-        // Botón de reinicio en AR (se ubica un poco más cerca, en z=-1.1)
+        // Botón de reinicio en AR, posición similar a multiplicaciones (z=-1.1)
         restartButtonMesh = createButton("Reiniciar");
         restartButtonMesh.position.set(0, -0.8, -1.1);
         scene.add(restartButtonMesh);
+
+        // Botones de scroll
+        scrollUpButtonMesh = createButton("▲", 0.1, 0.1);
+        scrollUpButtonMesh.position.set(-0.6, 0.5, -1.1);
+        scene.add(scrollUpButtonMesh);
+
+        scrollDownButtonMesh = createButton("▼", 0.1, 0.1);
+        scrollDownButtonMesh.position.set(-0.6, -0.4, -1.1);
+        scene.add(scrollDownButtonMesh);
       }
 
-      // Función para dibujar el segmento del leaderboard final
+      // Función para dibujar el segmento del leaderboard
       function drawLeaderboardSegment() {
         if (!leaderboardMesh) return;
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
@@ -921,7 +935,10 @@
         leaderboardMesh.geometry.dispose();
         leaderboardMesh.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
         leaderboardMesh.position.set(0, 0, -1.2);
+        // Reposicionar botones: reinicio y scroll
         restartButtonMesh.position.set(0, -planeHeight * 0.6, -1.1);
+        scrollUpButtonMesh.position.set(-planeWidth * 0.5 - 0.1, planeHeight * 0.35, -1.1);
+        scrollDownButtonMesh.position.set(-planeWidth * 0.5 - 0.1, -planeHeight * 0.35, -1.1);
       }
 
       // Función para crear un botón en AR
@@ -957,7 +974,7 @@
         });
       }, { once: true });
 
-      // 2.15 Evento táctil para raycasting (simula colisión con paneles)
+      // 2.15 Evento táctil para raycasting (simula colisión con paneles o botones)
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -971,20 +988,22 @@
           objectsToIntersect = answers;
         } else {
           if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
+          if (scrollUpButtonMesh) objectsToIntersect.push(scrollUpButtonMesh);
+          if (scrollDownButtonMesh) objectsToIntersect.push(scrollDownButtonMesh);
         }
         const intersects = raycaster.intersectObjects(objectsToIntersect);
         if (intersects.length > 0 && !hasCollided) {
-          const panel = intersects[0].object;
+          const objHit = intersects[0].object;
           hasCollided = true;
           if (!gameOver) {
-            if (panel.userData.answer === correctAnswer) {
+            if (objHit.userData.answer === correctAnswer) {
               const responseTime = performance.now() - currentQuestionStartTime;
               correctResponseTimes.push(responseTime);
               correctCount++;
               const successSound = document.getElementById('successSound');
               const successClone = successSound.cloneNode();
               successClone.play().catch(e => console.error(e));
-              createSparksEffect(panel.position);
+              createSparksEffect(objHit.position);
               if (questionMesh) questionMesh.visible = false;
               if (questionImageMesh) questionImageMesh.visible = false;
               answers.forEach(a => a.visible = false);
@@ -1009,25 +1028,45 @@
               }, 500);
             }
           } else {
-            const successSound = document.getElementById('successSound');
-            const successClone = successSound.cloneNode();
-            successClone.play().catch(e => console.error(e));
-            createSparksEffect(panel.position);
-            panel.visible = false;
-            setTimeout(() => {
-              restartGame();
-              hasCollided = false;
-            }, 1000);
+            // Si ya terminó, los botones: reiniciar o scroll
+            if (objHit === restartButtonMesh) {
+              const successSound = document.getElementById('successSound');
+              const successClone = successSound.cloneNode();
+              successClone.play().catch(e => console.error(e));
+              createSparksEffect(objHit.position);
+              objHit.visible = false;
+              setTimeout(() => {
+                restartGame();
+                hasCollided = false;
+              }, 1000);
+            } else if (objHit === scrollUpButtonMesh) {
+              scoreboardStartIndex -= pageSize;
+              if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
+              drawLeaderboardSegment();
+              setTimeout(() => { hasCollided = false; }, 500);
+            } else if (objHit === scrollDownButtonMesh) {
+              scoreboardStartIndex += pageSize;
+              if (scoreboardStartIndex >= leaderboardResults.length) {
+                scoreboardStartIndex = leaderboardResults.length - pageSize;
+                if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
+              }
+              drawLeaderboardSegment();
+              setTimeout(() => { hasCollided = false; }, 500);
+            }
           }
         }
       }, false);
 
-      // 2.16 Reiniciar juego
+      // 2.16 Reiniciar juego (se borran también las mallas del leaderboard y botones de scroll)
       function restartGame() {
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
         if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
         if (countdownMesh) { scene.remove(countdownMesh); countdownMesh = null; }
         if (scoreMesh) { scene.remove(scoreMesh); scoreMesh = null; }
+        if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
+        if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
+        if (scrollUpButtonMesh) { scene.remove(scrollUpButtonMesh); scrollUpButtonMesh = null; }
+        if (scrollDownButtonMesh) { scene.remove(scrollDownButtonMesh); scrollDownButtonMesh = null; }
         answers.forEach(panel => scene.remove(panel));
         answers = [];
         correctCount = 0;
