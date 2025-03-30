@@ -5,8 +5,7 @@
     <title>AR Notas Musicales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-      /* Estilos para el overlay (basados en el código de multiplicaciones) */
-      body { margin: 0; overflow-y: auto; font-family: sans-serif; }
+      body { margin: 0; overflow: hidden; font-family: sans-serif; }
       /* Overlay del menú inicial */
       #overlay {
         position: absolute;
@@ -20,9 +19,9 @@
         flex-direction: column;
         justify-content: flex-start;
         align-items: center;
+        color: #fff;
         text-align: center;
         z-index: 10;
-        box-sizing: border-box;
       }
       #overlay a {
         font-size: 14px;
@@ -44,13 +43,16 @@
       #overlay .respuestas-container select {
         font-size: 14px;
       }
-      /* Agregamos input para el nombre y la preview del leaderboard */
-      #overlay input {
-        padding: 10px;
-        font-size: 16px;
-        margin-bottom: 20px;
-        max-width: 80%;
+      #overlay img {
+        border-radius: 20px;
+        max-width: 15%;
       }
+      @media (orientation: portrait) {
+        #overlay img {
+          max-width: 70%;
+        }
+      }
+      /* Se agrega leaderboard preview y input para el nombre */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -72,7 +74,6 @@
         padding: 4px;
         text-align: center;
       }
-      /* En este ejemplo, el resto de estilos de escena se mantienen */
     </style>
   </head>
   <body>
@@ -80,11 +81,11 @@
     <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/acierto.wav" preload="auto"></audio>
     <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
     <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/timer7.mp3" preload="auto"></audio>
-    <!-- Nota: aquí usamos el mismo archivo para beepSound, pero se reproducirá solo en condiciones específicas -->
+    <!-- Se utiliza el mismo archivo de error para el beep -->
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
 
     <script type="module">
-      /***** 1) Firebase y Firestore *****/
+      /***** Firebase y Firestore *****/
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
       import { 
@@ -106,7 +107,7 @@
       const analytics = getAnalytics(appFirebase);
       const db = getFirestore(appFirebase);
 
-      /***** 2) Función para actualizar el leaderboard preview en el overlay *****/
+      // Función para actualizar el leaderboard preview en el overlay
       async function updateLeaderboardPreview(numAnswers) {
         const collectionName = `Musicleaderboard_${numAnswers}`;
         try {
@@ -117,10 +118,9 @@
           );
           const querySnapshot = await getDocs(top3Query);
           const results = [];
-          querySnapshot.forEach((docSnap) => {
+          querySnapshot.forEach(docSnap => {
             results.push(docSnap.data());
           });
-
           const container = document.getElementById('leaderboardPreview');
           container.innerHTML = "";
           if (results.length > 0) {
@@ -145,11 +145,11 @@
         }
       }
 
-      /***** 3) Código AR para Notas Musicales *****/
+      /***** Código AR (Notas Musicales) *****/
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
-      // Array de notas musicales
+      // 1) Array de notas musicales
       const notes = [
         { note: "DO",  image: "DO.png" },
         { note: "RE",  image: "RE.png" },
@@ -163,16 +163,16 @@
         { note: "MI'", image: "MI'.png" }
       ];
 
-      // Variables globales
+      // 2) Variables globales
       let camera, scene, renderer;
       let correctAnswer;
-      let answers = []; // Paneles de respuesta
+      let answers = [];
       let hasCollided = false;
       let questionMesh = null;
       let questionText = "";
       let questionNoteImage = "";
       let questionImageMesh = null;
-      const collisionThreshold = 0.2;
+      let collisionThreshold = 0.2;
       let sparksSystems = [];
 
       // Contadores
@@ -181,10 +181,10 @@
 
       // Tiempo de juego
       let gameStartTime = 0;
-      const gameDuration = 60;
+      const gameDuration = 60; // segundos
       let gameOver = false;
 
-      // HUD en AR
+      // Paneles en AR
       let countdownMesh = null, countdownCanvas = null, countdownCtx = null, countdownTexture = null;
       let scoreMesh = null, scoreCanvas = null, scoreCtx = null, scoreTexture = null;
 
@@ -194,49 +194,40 @@
       // Número de respuestas
       let selectedNumAnswers = 4;
 
-      // Guardar transformaciones iniciales de las respuestas
+      // Guardamos las transformaciones iniciales de las respuestas
       let originalAnswerTransforms = null;
 
-      // Control beep
+      // beep
       let beepPlayed = false;
 
-      // Estado del juego
+      // Estado de inicio
       let gameReady = false;
       let countdownStarted = false;
 
-      // Factor de resolución
+      // Resolución
       const resolutionFactor = 4;
 
-      // Posición y dirección inicial de la cámara
+      // Guardar posición y dirección de la cámara inicial
       let initialCameraPos = new THREE.Vector3();
       let initialCameraDir = new THREE.Vector3();
 
-      // Variables para tiempos de respuesta
+      // Variables para leaderboard online y tiempos de respuesta
+      let playerName = "";
       let currentQuestionStartTime = 0;
       let correctResponseTimes = [];
 
-      // Variables para leaderboard final
-      let leaderboardResults = [];
-      let scoreboardStartIndex = 0;
-      const pageSize = 10;
-      let playerPosition = null;
-      let leaderboardMesh = null, scrollUpButtonMesh = null, scrollDownButtonMesh = null;
-
-      // Variables faltantes
-      let playerName = "";
-
-      /***** Función para dibujar rectángulo redondeado *****/
-      function drawRoundedRect(ctx, x, y, w, h, r) {
+      /***** Función para dibujar un rectángulo redondeado *****/
+      function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
         ctx.closePath();
         ctx.fill();
       }
@@ -274,8 +265,7 @@
         return new THREE.Mesh(geometry, material);
       }
 
-      /***** Funciones para la pregunta *****/
-      // Actualiza el panel de texto de la pregunta adaptándolo al largo del contenido
+      /***** Funciones de AR para pregunta, respuestas y posicionamiento *****/
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -322,7 +312,6 @@
         }
       }
 
-      // Actualiza la imagen de la nota (con esquinas redondeadas)
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -332,9 +321,9 @@
         const baseURL = "https://raw.githubusercontent.com/rafgim2/ARMusic/main/";
         loader.load(baseURL + questionNoteImage, function(texture) {
           const canvas = document.createElement('canvas');
-          const canvasWidth  = 256;
+          const canvasWidth = 256;
           const canvasHeight = 256;
-          canvas.width  = canvasWidth;
+          canvas.width = canvasWidth;
           canvas.height = canvasHeight;
           const ctx = canvas.getContext('2d');
           const radius = 20;
@@ -364,20 +353,18 @@
         });
       }
 
-      /***** Funciones para respuestas *****/
-      // Actualiza el panel de respuesta adaptándolo al largo del texto
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
-        const padding  = 40 * resolutionFactor;
+        const padding = 40 * resolutionFactor;
         const tmpCanvas = document.createElement('canvas');
-        const tmpCtx    = tmpCanvas.getContext('2d');
+        const tmpCtx = tmpCanvas.getContext('2d');
         tmpCtx.font = 'Bold ' + fontSize + 'px Arial';
         const metrics = tmpCtx.measureText(value);
-        const canvasWidth  = metrics.width + padding;
+        const canvasWidth = metrics.width + padding;
         const canvasHeight = fontSize + padding;
 
         const canvas = document.createElement('canvas');
-        canvas.width  = canvasWidth;
+        canvas.width = canvasWidth;
         canvas.height = canvasHeight;
         const ctx = canvas.getContext('2d');
         ctx.font = 'Bold ' + fontSize + 'px Arial';
@@ -392,9 +379,8 @@
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
 
-        // Ajustar escala (en este ejemplo usamos un factor calculado)
         const scaleFactor = (0.15 * 2) / (256 * resolutionFactor);
-        const newWidth  = canvas.width  * scaleFactor;
+        const newWidth = canvas.width * scaleFactor;
         const newHeight = canvas.height * scaleFactor;
         
         mesh.material.map = texture;
@@ -404,8 +390,6 @@
         mesh.userData.answer = value;
       }
 
-      /***** Funciones para crear y actualizar las respuestas *****/
-      // Crea los paneles de respuestas la primera vez y guarda sus transformaciones
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
@@ -413,86 +397,111 @@
           const minArc = 1.39626;
           const maxArc = Math.PI;
           let arcAngle = (numAnswers <= 4)
-            ? minArc
-            : (numAnswers >= 10)
-               ? maxArc
-               : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
+              ? minArc
+              : (numAnswers >= 10)
+                  ? maxArc
+                  : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
           const angleStart = -arcAngle / 2;
-          const angleEnd = arcAngle / 2;
-          originalAnswerTransforms = [];
-          for (let i = 0; i < numAnswers; i++) {
-            const canvas = document.createElement('canvas');
-            canvas.width  = 256 * resolutionFactor;
-            canvas.height = 256 * resolutionFactor;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#007BFF";
-            drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
-            ctx.fillStyle = "#FFFFFF";
-            ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText("...", canvas.width / 2, canvas.height / 2);
+          const angleEnd   = arcAngle / 2;
 
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.minFilter = THREE.LinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
-            const geometry = new THREE.PlaneGeometry(0.15, 0.15);
-            const mesh = new THREE.Mesh(geometry, material);
-            // Distribución en arco
-            const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
-            const xOffset = radius * Math.sin(angle);
-            const zOffset = -radius * Math.cos(angle);
-            let finalPos = new THREE.Vector3().copy(centerPos);
-            finalPos.x += xOffset;
-            finalPos.z += zOffset;
-            mesh.position.copy(finalPos);
-            mesh.lookAt(initialCameraPos);
-            mesh.userData.answer = "";
-            answers.push(mesh);
-            scene.add(mesh);
-            originalAnswerTransforms.push({
-              position: mesh.position.clone(),
-              rotation: mesh.rotation.clone()
-            });
-          }
-        } else {
-          // Solo actualizar el texto de las respuestas
-          const numAnswersExisting = selectedNumAnswers;
-          const wrongAnswers = new Set();
-          while (wrongAnswers.size < (numAnswersExisting - 1)) {
-            const rnd = Math.floor(Math.random() * notes.length);
-            const candidate = notes[rnd].note;
-            if (candidate !== correctAnswer) {
-              wrongAnswers.add(candidate);
+          if (originalAnswerTransforms === null) {
+            originalAnswerTransforms = [];
+            for (let i = 0; i < numAnswers; i++) {
+              const canvas = document.createElement('canvas');
+              canvas.width  = 256 * resolutionFactor;
+              canvas.height = 256 * resolutionFactor;
+              const ctx = canvas.getContext('2d');
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = "#007BFF";
+              drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 20 * resolutionFactor);
+              ctx.fillStyle = "#FFFFFF";
+              ctx.font = 'Bold ' + (75 * resolutionFactor) + 'px Arial';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText("?", canvas.width / 2, canvas.height / 2);
+
+              const texture  = new THREE.CanvasTexture(canvas);
+              texture.minFilter = THREE.LinearFilter;
+              texture.magFilter = THREE.LinearFilter;
+              const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.DoubleSide,
+                transparent: true
+              });
+              const geometry = new THREE.PlaneGeometry(0.15, 0.15);
+              const mesh = new THREE.Mesh(geometry, material);
+
+              const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
+              const xOffset = radius * Math.sin(angle);
+              const zOffset = -radius * Math.cos(angle);
+              
+              const finalPos = new THREE.Vector3().copy(centerPos);
+              finalPos.x += xOffset;
+              finalPos.z += zOffset;
+              
+              mesh.position.copy(finalPos);
+              mesh.lookAt(initialCameraPos);
+
+              answers.push(mesh);
+              scene.add(mesh);
+
+              originalAnswerTransforms.push({
+                position: mesh.position.clone(),
+                rotation: mesh.rotation.clone()
+              });
             }
-          }
-          const answersArray = [correctAnswer, ...wrongAnswers];
-          answersArray.sort(() => Math.random() - 0.5);
-          for (let i = 0; i < numAnswersExisting; i++) {
-            updateAnswerPanel(answers[i], answersArray[i]);
+          } else {
+            for (let i = 0; i < numAnswers; i++) {
+              const geometry = new THREE.PlaneGeometry(0.15, 0.15);
+              const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
+              const mesh = new THREE.Mesh(geometry, mat);
+              mesh.position.copy(originalAnswerTransforms[i].position);
+              mesh.rotation.copy(originalAnswerTransforms[i].rotation);
+              answers.push(mesh);
+              scene.add(mesh);
+            }
           }
         }
         updateAnswerObjectsPositions();
       }
 
-      // Recalcula la posición de los paneles de respuesta en función de su ancho
+      function updateAnswerObjects() {
+        const numAnswersExisting = selectedNumAnswers;
+        const wrongAnswers = new Set();
+        while (wrongAnswers.size < (numAnswersExisting - 1)) {
+          const rnd = Math.floor(Math.random() * notes.length);
+          const candidate = notes[rnd].note;
+          if (candidate !== correctAnswer) {
+            wrongAnswers.add(candidate);
+          }
+        }
+        const answersArray = [correctAnswer, ...wrongAnswers];
+        answersArray.sort(() => Math.random() - 0.5);
+
+        for (let i = 0; i < numAnswersExisting; i++) {
+          updateAnswerPanel(answers[i], answersArray[i]);
+        }
+        updateAnswerObjectsPositions();
+      }
+
       function updateAnswerObjectsPositions() {
         const radius = 0.8;
         const gapWorld = 0.05;
         const gapAngle = gapWorld / radius;
         const numPanels = answers.length;
+
         let panelAngles = [];
         answers.forEach(mesh => {
           let panelWidth = mesh.userData.panelWidth || mesh.geometry.parameters.width;
           let halfAngle = Math.asin((panelWidth / 2) / radius);
           panelAngles.push(2 * halfAngle);
         });
+
         let totalAngle = panelAngles[0] / 2 + panelAngles[numPanels - 1] / 2;
         for (let i = 0; i < numPanels - 1; i++) {
           totalAngle += (panelAngles[i] / 2) + gapAngle + (panelAngles[i+1] / 2);
         }
+
         let angles = [];
         let currentAngle = -totalAngle / 2 + panelAngles[0] / 2;
         angles.push(currentAngle);
@@ -500,6 +509,7 @@
           currentAngle += (panelAngles[i-1] / 2) + gapAngle + (panelAngles[i] / 2);
           angles.push(currentAngle);
         }
+
         for (let i = 0; i < numPanels; i++) {
           const mesh = answers[i];
           const angle = angles[i];
@@ -512,7 +522,7 @@
         }
       }
 
-      /***** Funciones de Score y Countdown *****/
+      /***** Cuenta regresiva, Score, etc. *****/
       function startCountdown() {
         gameStartTime = performance.now();
         countdownCanvas = document.createElement('canvas');
@@ -522,9 +532,10 @@
         countdownTexture = new THREE.CanvasTexture(countdownCanvas);
         countdownTexture.minFilter = THREE.LinearFilter;
         countdownTexture.magFilter = THREE.LinearFilter;
+
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: countdownTexture, transparent: true });
-        countdownMesh = new THREE.Mesh(geometry, material);
+        countdownMesh  = new THREE.Mesh(geometry, material);
         countdownMesh.position.set(0, 0.7, -0.8);
         scene.add(countdownMesh);
       }
@@ -537,9 +548,10 @@
         scoreTexture = new THREE.CanvasTexture(scoreCanvas);
         scoreTexture.minFilter = THREE.LinearFilter;
         scoreTexture.magFilter = THREE.LinearFilter;
+
         const geometry = new THREE.PlaneGeometry(0.6, 0.3);
         const material = new THREE.MeshBasicMaterial({ map: scoreTexture, transparent: true });
-        scoreMesh = new THREE.Mesh(geometry, material);
+        scoreMesh      = new THREE.Mesh(geometry, material);
         scoreMesh.position.set(0, -0.2, -0.82);
         scene.add(scoreMesh);
       }
@@ -549,6 +561,7 @@
         const remaining = Math.max(0, gameDuration - elapsed);
         const seconds = Math.floor(remaining);
         let timeColor = (remaining <= 10) ? "red" : "#FFFFFF";
+
         countdownCtx.clearRect(0, 0, countdownCanvas.width, countdownCanvas.height);
         countdownCtx.fillStyle = timeColor;
         countdownCtx.font = 'Bold ' + (64 * resolutionFactor) + 'px Arial';
@@ -556,7 +569,8 @@
         countdownCtx.textBaseline = "middle";
         countdownCtx.fillText(seconds < 10 ? "00:0" + seconds : "00:" + seconds, countdownCanvas.width / 2, countdownCanvas.height / 2);
         countdownTexture.needsUpdate = true;
-        // CORRECCIÓN: reproducir beep solo si el tiempo restante es <= -10 (10 seg. después de acabar)
+
+        // Solo reproducir beep si el tiempo restante es menor o igual a -10 (10 seg. después de finalizar)
         if (remaining <= -10 && !beepPlayed) {
           const beepSound = document.getElementById('beepSound');
           beepSound.currentTime = 0;
@@ -576,22 +590,23 @@
         scoreTexture.needsUpdate = true;
       }
 
-      /***** Función para generar pregunta *****/
+      /***** Generar pregunta *****/
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
         correctAnswer     = selectedNote.note;
         questionText      = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
+
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
         updateQuestionPanel();
         updateQuestionImage();
-        createAnswerObjects(selectedNumAnswers, false);
+        updateAnswerObjects();
         beepPlayed = false;
         currentQuestionStartTime = performance.now();
       }
 
-      /***** Funciones para inicializar la escena y ARButton *****/
+      /***** Inicializar escena y ARButton *****/
       function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -607,7 +622,7 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Overlay inicial: agregamos también input para el nombre y leaderboard preview
+        // Overlay inicial: se añade selector, leaderboard preview e input para el nombre
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
@@ -626,14 +641,16 @@
             '</select>' +
           '</div>' +
           '<div id="leaderboardPreview"></div>' +
-          '<input type="text" id="playerName" placeholder="Ingresa tu nombre" maxlength="10">';
+          '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">';
           
         const arButton = ARButton.createButton(renderer, {
           requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
             ? ['hit-test']
             : ['hit-test', 'hand-tracking']
         });
-        if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
+        if (arButton.parentNode) {
+          arButton.parentNode.removeChild(arButton);
+        }
         arButton.style.position = 'absolute';
         arButton.style.top = '450px';
         arButton.style.left = '100%';
@@ -646,20 +663,14 @@
         overlay.appendChild(arButton);
         document.body.appendChild(overlay);
 
-        // Actualizar leaderboard preview al cambiar el número de respuestas
-        const selectAnswers = document.getElementById('numAnswers');
-        selectAnswers.addEventListener('change', () => {
-          const num = parseInt(selectAnswers.value) || 4;
-          updateLeaderboardPreview(num);
-        });
-        updateLeaderboardPreview(4);
-
         renderer.xr.addEventListener('sessionstart', () => {
-          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
-          playerName = document.getElementById('playerName').value || "Jugador";
           camera.getWorldPosition(initialCameraPos);
           camera.getWorldDirection(initialCameraDir);
           initialCameraDir.normalize();
+
+          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
+          updateLeaderboardPreview(selectedNumAnswers);
+          playerName = document.getElementById('playerName').value || "Jugador";
           createAnswerObjects(selectedNumAnswers, true);
           overlay.remove();
           generateQuestion();
@@ -674,14 +685,71 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      /***** Funciones para efectos y actualización de respuestas *****/
+      /***** Efecto chispas *****/
+      function createCircleTexture() {
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width  = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, size, size);
+        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        return texture;
+      }
+      const sparkTexture = createCircleTexture();
+
+      function createSparksEffect(position) {
+        const count = 100;
+        const positions = new Float32Array(count * 3);
+        const velocities = [];
+        for (let i = 0; i < count; i++) {
+          positions[i*3+0] = position.x;
+          positions[i*3+1] = position.y;
+          positions[i*3+2] = position.z;
+          velocities.push(new THREE.Vector3(
+            (Math.random()-0.5)*0.5,
+            (Math.random()-0.5)*0.5,
+            (Math.random()-0.5)*0.5
+          ));
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions,3));
+        const material = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.02,
+          map: sparkTexture,
+          transparent: true,
+          opacity: 1.0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          alphaTest: 0.5,
+          sizeAttenuation: true
+        });
+        const points = new THREE.Points(geometry, material);
+        scene.add(points);
+        sparksSystems.push({
+          points,
+          velocities,
+          startTime: performance.now(),
+          lastUpdate: performance.now()
+        });
+      }
+
+      /***** Bucle principal (render) *****/
       function animate() {
         renderer.setAnimationLoop(render);
       }
+
       function render() {
         renderer.render(scene, camera);
 
-        // Efecto de flotación en respuestas
+        // Efecto de flotación para respuestas
         const t = performance.now();
         answers.forEach((mesh, index) => {
           if (originalAnswerTransforms && originalAnswerTransforms[index]) {
@@ -698,17 +766,16 @@
           countdownStarted = true;
         }
 
-        // Actualizar chispas
         const now = performance.now();
         for (let i = sparksSystems.length - 1; i >= 0; i--) {
           const sys = sparksSystems[i];
           const dt = (now - sys.lastUpdate) / 1000;
           sys.lastUpdate = now;
-          const posArray = sys.points.geometry.attributes.position.array;
+          const pos = sys.points.geometry.attributes.position.array;
           for (let j = 0; j < sys.velocities.length; j++) {
-            posArray[j*3+0] += sys.velocities[j].x * dt;
-            posArray[j*3+1] += sys.velocities[j].y * dt;
-            posArray[j*3+2] += sys.velocities[j].z * dt;
+            pos[j*3+0] += sys.velocities[j].x * dt;
+            pos[j*3+1] += sys.velocities[j].y * dt;
+            pos[j*3+2] += sys.velocities[j].z * dt;
           }
           sys.points.geometry.attributes.position.needsUpdate = true;
           let life = now - sys.startTime;
@@ -726,10 +793,12 @@
         if (!gameOver) {
           const remaining = updateCountdown();
           updateScoreDisplay();
-          if (remaining <= 0) { endGame(); }
+          if (remaining <= 0) {
+            endGame();
+          }
         }
 
-        // Detección de colisiones
+        // Detección de colisiones (usando manos o cámara)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session) {
@@ -753,9 +822,9 @@
           }
         }
         if (interactionPoints.length === 0) {
-          let camPos = new THREE.Vector3();
-          camera.getWorldPosition(camPos);
-          interactionPoints.push(camPos);
+          let cameraPos = new THREE.Vector3();
+          camera.getWorldPosition(cameraPos);
+          interactionPoints.push(cameraPos);
         }
 
         if (!gameOver) {
@@ -770,13 +839,13 @@
                   correctCount++;
                   playSound('successSound');
                   createSparksEffect(panel.position);
-                  if (questionMesh)       questionMesh.visible = false;
-                  if (questionImageMesh)  questionImageMesh.visible = false;
+                  if (questionMesh)      questionMesh.visible      = false;
+                  if (questionImageMesh) questionImageMesh.visible = false;
                   answers.forEach(a => a.visible = false);
                   setTimeout(() => {
                     if (!gameOver) {
                       generateQuestion();
-                      if (questionMesh)      questionMesh.visible = true;
+                      if (questionMesh)      questionMesh.visible      = true;
                       if (questionImageMesh) questionImageMesh.visible = true;
                       answers.forEach(a => a.visible = true);
                     }
@@ -800,7 +869,8 @@
             const btnPos = new THREE.Vector3();
             restartButtonMesh.getWorldPosition(btnPos);
             for (const pt of interactionPoints) {
-              if (btnPos.distanceTo(pt) < collisionThreshold && !hasCollided) {
+              const dist = pt.distanceTo(btnPos);
+              if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 playSound('successSound');
                 createSparksEffect(restartButtonMesh.position);
@@ -824,22 +894,22 @@
         }
       }
 
-      /***** Funciones de leaderboard final y reinicio *****/
+      /***** Fin del juego, leaderboard online y reinicio *****/
       async function endGame() {
         gameOver = true;
-        if (questionMesh)       scene.remove(questionMesh);
-        if (questionImageMesh)  scene.remove(questionImageMesh);
-        if (countdownMesh)      scene.remove(countdownMesh);
-        if (scoreMesh)          scene.remove(scoreMesh);
+        if (questionMesh)      scene.remove(questionMesh);
+        if (questionImageMesh) scene.remove(questionImageMesh);
+        if (countdownMesh)     scene.remove(countdownMesh);
+        if (scoreMesh)         scene.remove(scoreMesh);
         answers.forEach(a => scene.remove(a));
 
-        // Calcular media de tiempos (en segundos)
+        // Calcular la media de tiempos de respuesta (en segundos)
         let avgTime = 0;
         if (correctResponseTimes.length > 0) {
           let sum = correctResponseTimes.reduce((acc, t) => acc + t, 0);
           avgTime = sum / correctResponseTimes.length / 1000;
         }
-        // Puntaje: (aciertos - fallos) - avgTime, máximo 3 decimales
+        // Puntaje final: (aciertos - fallos) - avgTime, máximo 3 decimales
         const rawScore = (correctCount - wrongCount) - avgTime;
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
@@ -863,6 +933,7 @@
             timestamp: serverTimestamp()
           });
         }
+
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -874,29 +945,27 @@
           console.error("Error consultando leaderboard:", err);
           return;
         }
-        leaderboardResults = [];
+        let leaderboardResults = [];
         let idx = 0;
-        querySnapshot.forEach((docSnap) => {
+        querySnapshot.forEach(docSnap => {
           let data = docSnap.data();
           leaderboardResults.push({ ...data, _index: idx });
           idx++;
         });
         let playerIndex = leaderboardResults.findIndex(r => r.name === playerName && r.score === finalScore);
-        playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
-        scoreboardStartIndex = playerIndex - Math.floor(pageSize / 2);
+        let playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
+        let scoreboardStartIndex = playerIndex - Math.floor(10 / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) scoreboardStartIndex = 0;
-        createLeaderboardMesh();
-        drawLeaderboardSegment();
+        createLeaderboardMesh(leaderboardResults, scoreboardStartIndex);
+        drawLeaderboardSegment(leaderboardResults, scoreboardStartIndex, playerPosition);
       }
 
-      function createLeaderboardMesh() {
-        if (leaderboardMesh) scene.remove(leaderboardMesh);
-        if (restartButtonMesh) scene.remove(restartButtonMesh);
-        if (scrollUpButtonMesh) scene.remove(scrollUpButtonMesh);
-        if (scrollDownButtonMesh) scene.remove(scrollDownButtonMesh);
+      function createLeaderboardMesh(leaderboardResults, scoreboardStartIndex) {
+        if (restartButtonMesh)   scene.remove(restartButtonMesh);
+        if (finalMessageMesh)    scene.remove(finalMessageMesh);
         const dummyCanvas = document.createElement('canvas');
-        dummyCanvas.width = 512;
+        dummyCanvas.width  = 512;
         dummyCanvas.height = 512;
         const ctx = dummyCanvas.getContext('2d');
         const lbTexture = new THREE.CanvasTexture(dummyCanvas);
@@ -910,20 +979,22 @@
         leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth, planeHeight };
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
+
         restartButtonMesh = createButton("Reiniciar");
-        restartButtonMesh.position.set(0, -0.8, -1.1);
+        restartButtonMesh.position.set(0, -0.3, -0.8);
         scene.add(restartButtonMesh);
       }
 
-      function drawLeaderboardSegment() {
+      function drawLeaderboardSegment(leaderboardResults, scoreboardStartIndex, playerPosition) {
         if (!leaderboardMesh) return;
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
+        const pageSize = 10;
         const subset = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + pageSize);
         const lineHeight = 40 * resolutionFactor;
         const extraLines = 4;
         const canvasWidth = 512 * resolutionFactor;
         const canvasHeight = lineHeight * (subset.length + extraLines);
-        canvas.width = canvasWidth;
+        canvas.width  = canvasWidth;
         canvas.height = canvasHeight;
         ctx.fillStyle = "rgba(0,0,0,0.7)";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -965,58 +1036,67 @@
         const planeHeight = planeWidth * (canvasHeight / canvasWidth);
         leaderboardMesh.geometry.dispose();
         leaderboardMesh.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-        leaderboardMesh.position.set(0, 0.0, -1.2);
-        restartButtonMesh.position.set(0, -planeHeight * 0.6, -1.1);
+        leaderboardMesh.position.set(0, 0, -1.2);
       }
 
+      /***** Fin del juego y reinicio *****/
       function restartGame() {
         if (finalMessageMesh)   scene.remove(finalMessageMesh);
         if (restartButtonMesh)  scene.remove(restartButtonMesh);
         if (questionMesh)       scene.remove(questionMesh);
         if (questionImageMesh)  scene.remove(questionImageMesh);
+
         correctCount = 0;
-        wrongCount = 0;
-        gameStartTime = performance.now();
-        gameOver = false;
+        wrongCount   = 0;
+        gameStartTime= performance.now();
+        gameOver     = false;
         answers.forEach(a => scene.remove(a));
         answers = [];
+
         createAnswerObjects(selectedNumAnswers, true);
         generateQuestion();
         countdownStarted = false;
-        gameReady = true;
+        gameReady        = true;
         createScoreDisplay();
+
         const timerSound = document.getElementById('timerSound');
         timerSound.currentTime = 0;
         timerSound.loop = false;
-        timerSound.play().catch(e => {});
+        timerSound.play().catch(e => console.error(e));
       }
 
-      /***** Funciones de audio en móviles *****/
+      /***** Audio en móviles y fallback por touch *****/
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
         const errorEl = document.getElementById('errorSound');
         [successEl, errorEl].forEach(audioEl => {
           audioEl.play()
-            .then(() => { audioEl.pause(); audioEl.currentTime = 0; })
+            .then(() => {
+              audioEl.pause();
+              audioEl.currentTime = 0;
+            })
             .catch(e => console.error(e));
         });
       }, { once: true });
 
-      /***** Touch fallback *****/
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
         const x = (touch.clientX / window.innerWidth) * 2 - 1;
-        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
+        const y = - (touch.clientY / window.innerHeight) * 2 + 1;
         const mouseVector = new THREE.Vector2(x, y);
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouseVector, camera);
+
         let objectsToIntersect = [];
         if (!gameOver) {
           objectsToIntersect = answers;
         } else {
-          if (restartButtonMesh) objectsToIntersect = [restartButtonMesh];
+          if (restartButtonMesh) {
+            objectsToIntersect = [restartButtonMesh];
+          }
         }
+
         const intersects = raycaster.intersectObjects(objectsToIntersect);
         if (intersects.length > 0 && !hasCollided) {
           const panel = intersects[0].object;
@@ -1026,13 +1106,13 @@
               correctCount++;
               playSound('successSound');
               createSparksEffect(panel.position);
-              if (questionMesh)       questionMesh.visible = false;
-              if (questionImageMesh)  questionImageMesh.visible = false;
+              if (questionMesh)      questionMesh.visible      = false;
+              if (questionImageMesh) questionImageMesh.visible = false;
               answers.forEach(a => a.visible = false);
               setTimeout(() => {
                 if (!gameOver) {
                   generateQuestion();
-                  if (questionMesh)      questionMesh.visible = true;
+                  if (questionMesh)      questionMesh.visible      = true;
                   if (questionImageMesh) questionImageMesh.visible = true;
                   answers.forEach(a => a.visible = true);
                 }
@@ -1058,6 +1138,14 @@
           }
         }
       }, false);
+
+      function playSound(id) {
+        const el = document.getElementById(id);
+        if (el) {
+          const clone = el.cloneNode();
+          clone.play().catch(e => {});
+        }
+      }
 
       /***** Lanzar AR *****/
       init();
