@@ -113,6 +113,17 @@
       const analytics = getAnalytics(appFirebase);
       const db = getFirestore(appFirebase);
 
+      /***** Variables globales para el leaderboard *****/
+      let currentLeaderboardResults = [];
+      let currentPlayerPosition = null;
+      let scoreboardStartIndex = 0;
+      const pageSize = 10; // Número de filas por página
+
+      // Función para refrescar el segmento del leaderboard (scroll)
+      function drawLeaderboardSegment() {
+        createLeaderboardMesh(currentLeaderboardResults, scoreboardStartIndex, currentPlayerPosition);
+      }
+
       /***** 2) Función para actualizar el leaderboard preview *****/
       async function updateLeaderboardPreview(numAnswers) {
         const collectionName = `Musicleaderboard_${numAnswers}`;
@@ -847,6 +858,38 @@
           if (remaining <= 0) {
             endGame();
           }
+        } else {
+          // Modo final: detección de colisiones para botones de reinicio y scroll
+          let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
+          for (const btn of finalButtons) {
+            if (!btn.visible) continue;
+            const btnPos = new THREE.Vector3();
+            btn.getWorldPosition(btnPos);
+            for (const pt of interactionPoints) {
+              const dist = pt.distanceTo(btnPos);
+              if (dist < collisionThreshold && !hasCollided) {
+                hasCollided = true;
+                if (btn === restartButtonMesh) {
+                  playSound('successSound');
+                  createSparksEffect(btn.position);
+                  btn.visible = false;
+                  setTimeout(() => {
+                    restartGame();
+                    hasCollided = false;
+                  }, 1000);
+                } else if (btn === scrollUpButtonMesh) {
+                  scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
+                  drawLeaderboardSegment();
+                  setTimeout(() => { hasCollided = false; }, 500);
+                } else if (btn === scrollDownButtonMesh) {
+                  scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, currentLeaderboardResults.length - pageSize);
+                  drawLeaderboardSegment();
+                  setTimeout(() => { hasCollided = false; }, 500);
+                }
+                return;
+              }
+            }
+          }
         }
 
         // Detección de colisiones (modo XR)
@@ -917,38 +960,6 @@
               }
             }
           }
-        } else {
-          // Modo final: detección de colisiones para botones de reinicio y scroll
-          let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
-          for (const btn of finalButtons) {
-            if (!btn.visible) continue;
-            const btnPos = new THREE.Vector3();
-            btn.getWorldPosition(btnPos);
-            for (const pt of interactionPoints) {
-              const dist = pt.distanceTo(btnPos);
-              if (dist < collisionThreshold && !hasCollided) {
-                hasCollided = true;
-                if (btn === restartButtonMesh) {
-                  playSound('successSound');
-                  createSparksEffect(btn.position);
-                  btn.visible = false;
-                  setTimeout(() => {
-                    restartGame();
-                    hasCollided = false;
-                  }, 1000);
-                } else if (btn === scrollUpButtonMesh) {
-                  scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
-                } else if (btn === scrollDownButtonMesh) {
-                  scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
-                }
-                return;
-              }
-            }
-          }
         }
       }
 
@@ -1016,6 +1027,11 @@
         scoreboardStartIndex = playerIndex - Math.floor(10 / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) scoreboardStartIndex = 0;
+        
+        // Guardar los datos globalmente para scroll
+        currentLeaderboardResults = leaderboardResults;
+        currentPlayerPosition = playerPosition;
+        
         createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition);
       }
 
@@ -1213,7 +1229,7 @@
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
             } else if (objHit === scrollDownButtonMesh) {
-              scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
+              scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, currentLeaderboardResults.length - pageSize);
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
             }
