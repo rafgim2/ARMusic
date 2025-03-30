@@ -87,7 +87,7 @@
     <audio id="successSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/acierto.wav" preload="auto"></audio>
     <audio id="errorSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
     <audio id="timerSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/timer7.mp3" preload="auto"></audio>
-    <!-- Se usará el mismo archivo para "beep" en condiciones específicas -->
+    <!-- Usamos errorSound para "beep" en condiciones específicas -->
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMusic/main/error.wav" preload="auto"></audio>
 
     <script type="module">
@@ -353,7 +353,7 @@
           scene.remove(questionImageMesh);
           questionImageMesh = null;
         }
-        // Usamos la textura pre-cargada si existe; de lo contrario, cargamos
+        // Usar textura pre-cargada si existe
         let texture;
         if (preloadedNoteTextures[correctAnswer]) {
           texture = preloadedNoteTextures[correctAnswer];
@@ -695,7 +695,7 @@
           arButton.parentNode.removeChild(arButton);
         }
         arButton.style.position = 'absolute';
-        arButton.style.top = '600px';
+        arButton.style.top = '450px';
         arButton.style.left = '100%';
         arButton.style.transform = 'translateX(0%)';
         arButton.style.width = '150px';
@@ -744,7 +744,7 @@
         canvas.height = size;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, size, size);
-        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+        const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
         gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
         gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = gradient;
@@ -849,7 +849,7 @@
           }
         }
 
-        // Detección de colisiones (XR)
+        // Detección de colisiones (modo XR)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session) {
@@ -887,7 +887,7 @@
               if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
-                  // Registrar tiempo de respuesta para respuesta correcta
+                  // Registrar el tiempo de respuesta en milisegundos
                   correctResponseTimes.push(performance.now() - currentQuestionStartTime);
                   correctCount++;
                   playSound('successSound');
@@ -918,7 +918,7 @@
             }
           }
         } else {
-          // Cuando el juego ha finalizado, se detectan colisiones con los botones (reiniciar, scroll)
+          // Modo final: detección de colisiones para botones de reinicio y scroll
           let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
           for (const btn of finalButtons) {
             if (!btn.visible) continue;
@@ -1036,7 +1036,7 @@
         const lbGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
         const lbMaterial = new THREE.MeshBasicMaterial({ map: lbTexture, transparent: true });
         leaderboardMesh = new THREE.Mesh(lbGeometry, lbMaterial);
-        leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth, planeHeight };
+        leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth };
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
 
@@ -1157,7 +1157,7 @@
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
         const x = (touch.clientX / window.innerWidth) * 2 - 1;
-        const y = - (touch.clientY / window.innerHeight) * 2 + 1;
+        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
         const mouseVector = new THREE.Vector2(x, y);
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouseVector, camera);
@@ -1172,7 +1172,33 @@
           const objHit = intersects[0].object;
           hasCollided = true;
           if (!gameOver) {
-            // En modo de juego, ya se gestiona la respuesta
+            if (objHit.userData.answer === correctAnswer) {
+              // Registrar tiempo de respuesta para respuesta correcta (modo touch)
+              correctResponseTimes.push(performance.now() - currentQuestionStartTime);
+              correctCount++;
+              playSound('successSound');
+              createSparksEffect(objHit.position);
+              if (questionMesh)       questionMesh.visible = false;
+              if (questionImageMesh)  questionImageMesh.visible = false;
+              answers.forEach(a => a.visible = false);
+              setTimeout(() => {
+                if (!gameOver) {
+                  generateQuestion();
+                  if (questionMesh)       questionMesh.visible = true;
+                  if (questionImageMesh)  questionImageMesh.visible = true;
+                  answers.forEach(a => a.visible = true);
+                }
+                hasCollided = false;
+              }, 1000);
+            } else {
+              wrongCount++;
+              playSound('errorSound');
+              answers.forEach(a => a.material.color.set(0xff0000));
+              setTimeout(() => {
+                answers.forEach(a => a.material.color.set(0xffffff));
+                hasCollided = false;
+              }, 500);
+            }
           } else {
             if (objHit === restartButtonMesh) {
               playSound('successSound');
@@ -1183,7 +1209,6 @@
                 hasCollided = false;
               }, 1000);
             } else if (objHit === scrollUpButtonMesh) {
-              // Actualiza la posición de la tabla
               scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
@@ -1205,13 +1230,13 @@
       }
 
       /***** Lanzar AR *****/
-      // Primero pre-cargamos las imágenes de todas las notas para que no haya retardo
+      // Pre-cargar las imágenes de las notas antes de iniciar
       preloadNoteImages().then(() => {
         init();
         animate();
       }).catch(err => {
         console.error("Error al pre-cargar imágenes:", err);
-        // Si falla, igualmente iniciamos
+        // Si falla, igual se inicia
         init();
         animate();
       });
