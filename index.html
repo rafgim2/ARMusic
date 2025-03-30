@@ -49,7 +49,7 @@
         border-radius: 20px;
         max-width: 15%;
       }
-      /* Tabla preview leaderboard */
+      /* Estilo idéntico al de multiplicaciones para la tabla preview */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -77,7 +77,7 @@
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMultimusic/main/beep.wav" preload="auto"></audio>
     
     <script type="module">
-      /***** 1) Firebase y Firestore (adaptado para Notas, usando colecciones "Musicleaderboard_X") *****/
+      /***** 1) Firebase y Firestore (para Notas, usando "Musicleaderboard_X") *****/
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
       import { 
@@ -137,11 +137,11 @@
         }
       }
 
-      /***** 2) AR y lógica del juego Notas Musicales (base) *****/
+      /***** 2) AR y lógica del juego Notas Musicales *****/
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
-      // 2.1 Array de notas musicales y precarga de texturas
+      // 2.1 Array de notas y precarga de texturas
       const notes = [
         { note: "DO",  image: "DO.png" },
         { note: "RE",  image: "RE.png" },
@@ -185,18 +185,12 @@
       let gameReady = false;
       let countdownStarted = false;
       const resolutionFactor = 4;
-      // Variables para el leaderboard y puntajes online
+      // Variables para leaderboard y puntaje online
       let playerName = "";
       let selectedNumAnswers = 4;
-      // Variables para medir tiempo de respuesta
+      // Medición de tiempos de respuesta
       let currentQuestionStartTime = 0;
       let correctResponseTimes = []; // tiempos en ms
-      /***** Variables para leaderboard final en AR (opcional si quieres mostrar tabla completa) *****/
-      let leaderboardMesh = null;
-      let leaderboardResults = [];
-      let scoreboardStartIndex = 0;
-      const pageSize = 10;
-      let playerPosition = null;
 
       /***** 2.3 Funciones auxiliares: dibujo de rectángulo redondeado *****/
       function drawRoundedRect(ctx, x, y, width, height, radius) {
@@ -214,7 +208,7 @@
         ctx.fill();
       }
 
-      // 2.4 Función para actualizar el panel de pregunta (texto)
+      // 2.4 Actualizar el panel de pregunta (texto)
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -260,7 +254,7 @@
         }
       }
 
-      // 2.5 Función para actualizar la imagen de la nota
+      // 2.5 Actualizar la imagen de la nota
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -301,7 +295,7 @@
         scene.add(questionImageMesh);
       }
 
-      // 2.6 Función para actualizar el panel de respuesta
+      // 2.6 Actualizar el panel de respuesta
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding  = 40 * resolutionFactor;
@@ -338,22 +332,21 @@
         mesh.userData.answer = value;
       }
 
-      // 2.7 Función para crear (o actualizar) los paneles de respuesta
+      // 2.7 Crear (o actualizar) los paneles de respuesta
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
-          // Posición central relativa a la cámara inicial
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.8);
           const minArc = 1.39626;
           const maxArc = Math.PI;
-          let arcAngle = (numAnswers <= 4) ? minArc : (numAnswers >= 10) ? maxArc : minArc + ((numAnswers - 4) / (10 - 4)) * (maxArc - minArc);
-          const angleStart = -arcAngle / 2;
-          const angleEnd   = arcAngle / 2;
+          let arcAngle = (numAnswers <= 4) ? minArc : (numAnswers >= 10) ? maxArc : minArc + ((numAnswers - 4)/(10-4))*(maxArc-minArc);
+          const angleStart = -arcAngle/2;
+          const angleEnd = arcAngle/2;
 
           originalAnswerTransforms = [];
           for (let i = 0; i < numAnswers; i++) {
             const canvas = document.createElement('canvas');
-            canvas.width  = 256 * resolutionFactor;
+            canvas.width = 256 * resolutionFactor;
             canvas.height = 256 * resolutionFactor;
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -365,21 +358,19 @@
             ctx.textBaseline = 'middle';
             ctx.fillText("...", canvas.width / 2, canvas.height / 2);
 
-            const texture  = new THREE.CanvasTexture(canvas);
+            const texture = new THREE.CanvasTexture(canvas);
             texture.minFilter = THREE.LinearFilter;
             texture.magFilter = THREE.LinearFilter;
             const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
             const geometry = new THREE.PlaneGeometry(0.15, 0.15);
-            const mesh     = new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(geometry, material);
 
-            const angle = angleStart + (angleEnd - angleStart) * (i / (numAnswers - 1));
+            const angle = angleStart + (angleEnd - angleStart) * (i/(numAnswers-1));
             const xOffset = radius * Math.sin(angle);
             const zOffset = -radius * Math.cos(angle);
-              
             const finalPos = new THREE.Vector3().copy(centerPos);
             finalPos.x += xOffset;
             finalPos.z += zOffset;
-              
             mesh.position.copy(finalPos);
             mesh.lookAt(initialCameraPos);
 
@@ -392,7 +383,6 @@
             });
           }
         } else {
-          // Actualizar paneles con nuevas respuestas
           const numAnswersExisting = selectedNumAnswers;
           const wrongAnswers = new Set();
           while (wrongAnswers.size < (numAnswersExisting - 1)) {
@@ -412,7 +402,7 @@
         createAnswerObjects(selectedNumAnswers, false);
       }
 
-      // 2.8 Función para efecto chispas
+      // 2.8 Efecto chispas
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -428,7 +418,7 @@
           ));
         }
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions,3));
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         const material = new THREE.PointsMaterial({
           color: 0xffffff,
           size: 0.02,
@@ -465,25 +455,22 @@
         return new THREE.CanvasTexture(canvas);
       }
 
-      // 2.9 Generar pregunta: selecciona nota aleatoria y reinicia cronómetro para respuesta
+      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
-        correctAnswer     = selectedNote.note;
-        questionText      = "¿Qué nota es esta?";
+        correctAnswer = selectedNote.note;
+        questionText = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
-
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
         updateQuestionPanel();
         updateQuestionImage();
         updateAnswerObjects();
         beepPlayed = false;
-        // Iniciar cronómetro para esta pregunta
         currentQuestionStartTime = performance.now();
       }
 
-      // 2.10 Inicializar escena, cámara, renderer y overlay (incluye input nombre y preview leaderboard)
-      // Se guarda la posición y dirección de la cámara inicial para ubicar los paneles
+      // 2.10 Inicializar escena, cámara, renderer y overlay
       let initialCameraPos = new THREE.Vector3();
       let initialCameraDir = new THREE.Vector3();
 
@@ -528,9 +515,7 @@
             ? ['hit-test']
             : ['hit-test', 'hand-tracking']
         });
-        if (arButton.parentNode) {
-          arButton.parentNode.removeChild(arButton);
-        }
+        if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
         arButton.style.top = '450px';
         arButton.style.left = '100%';
@@ -543,7 +528,6 @@
         overlay.appendChild(arButton);
         document.body.appendChild(overlay);
 
-        // Actualizar leaderboard preview cada vez que se cambie el número de respuestas
         const selectAnswers = document.getElementById('numAnswers');
         selectAnswers.addEventListener('change', () => {
           const num = parseInt(selectAnswers.value) || 4;
@@ -560,7 +544,6 @@
           createAnswerObjects(selectedNumAnswers, true);
           overlay.remove();
           generateQuestion();
-          // Se crea el score display en AR
           createScoreDisplay();
           gameReady = true;
         });
@@ -586,7 +569,6 @@
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         countdownMesh = new THREE.Mesh(geometry, material);
         countdownMesh.position.set(0, 0.7, -0.8);
-        // Guardamos el canvas en userData para actualizarlo
         countdownMesh.userData = { canvas, ctx, texture };
         scene.add(countdownMesh);
       }
@@ -618,7 +600,7 @@
         ctx.font = 'Bold ' + (64 * resolutionFactor) + 'px Arial';
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(seconds < 10 ? "00:0" + seconds : "00:" + seconds, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(seconds < 10 ? "00:0" + seconds : "00:" + seconds, canvas.width/2, canvas.height/2);
         texture.needsUpdate = true;
         if (remaining <= 10 && !beepPlayed) {
           const beepSound = document.getElementById('beepSound');
@@ -641,7 +623,7 @@
         texture.needsUpdate = true;
       }
 
-      // 2.12 Bucle principal y renderizado (incluye colisiones y actualización de sparks)
+      // 2.12 Bucle principal y renderizado (incluye detección de colisiones)
       function animate() {
         renderer.setAnimationLoop(render);
       }
@@ -695,7 +677,7 @@
           }
         }
 
-        // Detección de colisiones con manos o cabeza
+        // Detección de colisiones mediante XR (manos/cámara)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session && xrFrame) {
@@ -730,7 +712,6 @@
               if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
-                  // Medir tiempo de respuesta correcto
                   const responseTime = performance.now() - currentQuestionStartTime;
                   correctResponseTimes.push(responseTime);
                   correctCount++;
@@ -768,7 +749,7 @@
         }
       }
 
-      // 2.13 Función para finalizar el juego y subir el puntaje online
+      // 2.13 Finalizar juego y subir puntaje online
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -777,18 +758,15 @@
         if (scoreMesh) scene.remove(scoreMesh);
         answers.forEach(panel => scene.remove(panel));
 
-        // Calcular promedio de tiempo de respuesta (en segundos)
         let avgTime = 0;
         if (correctResponseTimes.length > 0) {
           let sum = correctResponseTimes.reduce((a, b) => a + b, 0);
           avgTime = sum / correctResponseTimes.length / 1000;
         }
-        // Puntaje final: (aciertos - fallos) - promedio tiempo
         const rawScore = (correctCount - wrongCount) - avgTime;
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
 
-        // Buscar si ya existe un documento con el mismo nombre
         let docsFound = await getDocs(
           query(
             collection(db, collectionName),
@@ -809,17 +787,13 @@
             timestamp: serverTimestamp()
           });
         }
-
-        // Aquí podrías cargar el leaderboard completo si lo deseas.
-        // Por ejemplo, obtener todos los documentos ordenados y mostrarlos en AR o en el overlay.
-        // En este ejemplo sólo se sube la puntuación.
         console.log("Puntaje final subido:", finalScore);
       }
 
-      // 2.14 Evento touch para dispositivos móviles (activar audio)
+      /***** 2.14 Evento táctil para desbloquear audio *****/
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
-        const errorEl   = document.getElementById('errorSound');
+        const errorEl = document.getElementById('errorSound');
         [successEl, errorEl].forEach(audioEl => {
           audioEl.play().then(() => {
             audioEl.pause();
@@ -828,7 +802,99 @@
         });
       }, { once: true });
 
-      // Lanzar todo
+      /***** 2.15 Evento táctil para raycasting en dispositivos móviles *****/
+      window.addEventListener('touchstart', function(event) {
+        if (!/Mobi|Android/i.test(navigator.userAgent)) return;
+        const touch = event.touches[0];
+        const x = (touch.clientX / window.innerWidth) * 2 - 1;
+        const y = - (touch.clientY / window.innerHeight) * 2 + 1;
+        const mouseVector = new THREE.Vector2(x, y);
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouseVector, camera);
+
+        let objectsToIntersect = [];
+        if (!gameOver) {
+          objectsToIntersect = answers;
+        } else {
+          // Si el juego terminó, se podrían incluir botones de reinicio u otros.
+          if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
+        }
+
+        const intersects = raycaster.intersectObjects(objectsToIntersect);
+        if (intersects.length > 0 && !hasCollided) {
+          const panel = intersects[0].object;
+          hasCollided = true;
+          if (!gameOver) {
+            if (panel.userData.answer === correctAnswer) {
+              const responseTime = performance.now() - currentQuestionStartTime;
+              correctResponseTimes.push(responseTime);
+              correctCount++;
+              const successSound = document.getElementById('successSound');
+              const successClone = successSound.cloneNode();
+              successClone.play().catch(e => console.error(e));
+              createSparksEffect(panel.position);
+              if (questionMesh) questionMesh.visible = false;
+              if (questionImageMesh) questionImageMesh.visible = false;
+              answers.forEach(a => a.visible = false);
+              setTimeout(() => {
+                if (!gameOver) {
+                  generateQuestion();
+                  if (questionMesh) questionMesh.visible = true;
+                  if (questionImageMesh) questionImageMesh.visible = true;
+                  answers.forEach(a => a.visible = true);
+                }
+                hasCollided = false;
+              }, 1000);
+            } else {
+              wrongCount++;
+              const errorSound = document.getElementById('errorSound');
+              const errorClone = errorSound.cloneNode();
+              errorClone.play().catch(e => console.error(e));
+              answers.forEach(a => a.material.color.set(0xff0000));
+              setTimeout(() => {
+                answers.forEach(a => a.material.color.set(0xffffff));
+                hasCollided = false;
+              }, 500);
+            }
+          } else {
+            const successSound = document.getElementById('successSound');
+            const successClone = successSound.cloneNode();
+            successClone.play().catch(e => console.error(e));
+            createSparksEffect(panel.position);
+            panel.visible = false;
+            setTimeout(() => {
+              restartGame();
+              hasCollided = false;
+            }, 1000);
+          }
+        }
+      }, false);
+
+      // 2.16 Reiniciar juego
+      function restartGame() {
+        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
+        if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
+        if (countdownMesh) { scene.remove(countdownMesh); countdownMesh = null; }
+        if (scoreMesh) { scene.remove(scoreMesh); scoreMesh = null; }
+        answers.forEach(panel => scene.remove(panel));
+        answers = [];
+        correctCount = 0;
+        wrongCount = 0;
+        gameStartTime = performance.now();
+        gameOver = false;
+        correctResponseTimes = [];
+        createAnswerObjects(selectedNumAnswers, true);
+        generateQuestion();
+        countdownStarted = false;
+        gameReady = true;
+        createScoreDisplay();
+        const timerSound = document.getElementById('timerSound');
+        timerSound.currentTime = 0;
+        timerSound.loop = false;
+        timerSound.play().catch(e => console.error(e));
+      }
+
+      // Lanzar AR y animación
       init();
       animate();
     </script>
