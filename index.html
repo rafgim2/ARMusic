@@ -113,17 +113,6 @@
       const analytics = getAnalytics(appFirebase);
       const db = getFirestore(appFirebase);
 
-      /***** Variables globales para el leaderboard *****/
-      let currentLeaderboardResults = [];
-      let currentPlayerPosition = null;
-      let scoreboardStartIndex = 0;
-      const pageSize = 10; // Número de filas por página
-
-      // Función para refrescar el segmento del leaderboard (scroll)
-      function drawLeaderboardSegment() {
-        createLeaderboardMesh(currentLeaderboardResults, scoreboardStartIndex, currentPlayerPosition);
-      }
-
       /***** 2) Función para actualizar el leaderboard preview *****/
       async function updateLeaderboardPreview(numAnswers) {
         const collectionName = `Musicleaderboard_${numAnswers}`;
@@ -236,12 +225,16 @@
       let initialCameraPos = new THREE.Vector3();
       let initialCameraDir = new THREE.Vector3();
 
-      // =========================
       // Variables para tiempos y nombre de jugador
-      // =========================
       let currentQuestionStartTime = 0;
       let correctResponseTimes = [];
       let playerName = "";
+
+      // Variables globales para leaderboard y paginación
+      let leaderboardResults = [];
+      let scoreboardStartIndex = 0;
+      let pageSize = 10;
+      let playerPositionGlobal = null;
 
       /***** Pre-cargar imágenes de notas *****/
       const preloadedNoteTextures = {};
@@ -852,7 +845,6 @@
           }
         }
 
-        // Actualizar countdown y score si el juego sigue activo
         if (!gameOver) {
           const remaining = updateCountdown();
           updateScoreDisplay();
@@ -861,9 +853,9 @@
           }
         }
 
-        // --- Definir interactionPoints ANTES de usarla en el bloque final ---
-        let interactionPoints = [];
+        // Detección de colisiones (modo XR)
         const session = renderer.xr.getSession();
+        let interactionPoints = [];
         if (session) {
           const frame = renderer.xr.getFrame();
           if (frame) {
@@ -889,42 +881,8 @@
           camera.getWorldPosition(camPos);
           interactionPoints.push(camPos);
         }
-        // ---------------------------------------------------------
 
-        if (gameOver) {
-          // Modo final: detección de colisiones para botones de reinicio y scroll
-          let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
-          for (const btn of finalButtons) {
-            if (!btn.visible) continue;
-            const btnPos = new THREE.Vector3();
-            btn.getWorldPosition(btnPos);
-            for (const pt of interactionPoints) {
-              const dist = pt.distanceTo(btnPos);
-              if (dist < collisionThreshold && !hasCollided) {
-                hasCollided = true;
-                if (btn === restartButtonMesh) {
-                  playSound('successSound');
-                  createSparksEffect(btn.position);
-                  btn.visible = false;
-                  setTimeout(() => {
-                    restartGame();
-                    hasCollided = false;
-                  }, 1000);
-                } else if (btn === scrollUpButtonMesh) {
-                  scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
-                } else if (btn === scrollDownButtonMesh) {
-                  scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, currentLeaderboardResults.length - pageSize);
-                  drawLeaderboardSegment();
-                  setTimeout(() => { hasCollided = false; }, 500);
-                }
-                return;
-              }
-            }
-          }
-        } else {
-          // Detección de colisiones (modo normal) para las respuestas
+        if (!gameOver) {
           for (let panel of answers) {
             const panelPos = new THREE.Vector3();
             panel.getWorldPosition(panelPos);
@@ -933,7 +891,7 @@
               if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
-                  // Registrar tiempo de respuesta en milisegundos
+                  // Registrar el tiempo de respuesta en milisegundos
                   correctResponseTimes.push(performance.now() - currentQuestionStartTime);
                   correctCount++;
                   playSound('successSound');
@@ -960,6 +918,38 @@
                   }, 500);
                 }
                 break;
+              }
+            }
+          }
+        } else {
+          // Modo final: detección de colisiones para botones de reinicio y scroll
+          let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
+          for (const btn of finalButtons) {
+            if (!btn.visible) continue;
+            const btnPos = new THREE.Vector3();
+            btn.getWorldPosition(btnPos);
+            for (const pt of interactionPoints) {
+              const dist = pt.distanceTo(btnPos);
+              if (dist < collisionThreshold && !hasCollided) {
+                hasCollided = true;
+                if (btn === restartButtonMesh) {
+                  playSound('successSound');
+                  createSparksEffect(btn.position);
+                  btn.visible = false;
+                  setTimeout(() => {
+                    restartGame();
+                    hasCollided = false;
+                  }, 1000);
+                } else if (btn === scrollUpButtonMesh) {
+                  scoreboardStartIndex = Math.max(scoreboardStartIndex - pageSize, 0);
+                  drawLeaderboardSegment();
+                  setTimeout(() => { hasCollided = false; }, 500);
+                } else if (btn === scrollDownButtonMesh) {
+                  scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
+                  drawLeaderboardSegment();
+                  setTimeout(() => { hasCollided = false; }, 500);
+                }
+                return;
               }
             }
           }
@@ -1007,6 +997,8 @@
           });
         }
 
+        leaderboardResults = [];
+        let idx = 0;
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -1018,8 +1010,6 @@
           console.error("Error consultando leaderboard:", err);
           return;
         }
-        let leaderboardResults = [];
-        let idx = 0;
         querySnapshot.forEach((docSnap) => {
           let data = docSnap.data();
           leaderboardResults.push({ ...data, _index: idx });
@@ -1027,14 +1017,10 @@
         });
         let playerIndex = leaderboardResults.findIndex(r => r.name === playerName && r.score === finalScore);
         let playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
-        scoreboardStartIndex = playerIndex - Math.floor(10 / 2);
+        playerPositionGlobal = playerPosition;
+        scoreboardStartIndex = playerIndex - Math.floor(pageSize / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) scoreboardStartIndex = 0;
-        
-        // Guardar los datos globalmente para scroll
-        currentLeaderboardResults = leaderboardResults;
-        currentPlayerPosition = playerPosition;
-        
         createLeaderboardMesh(leaderboardResults, scoreboardStartIndex, playerPosition);
       }
 
@@ -1063,7 +1049,7 @@
         const lineHeight = 40 * resolutionFactor;
         const extraLines = 4;
         const canvasWidth = 512 * resolutionFactor;
-        const canvasHeight = lineHeight * (leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex+10).length + extraLines);
+        const canvasHeight = lineHeight * (leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex+pageSize).length + extraLines);
         dummyCanvas.width = canvasWidth;
         dummyCanvas.height = canvasHeight;
         ctx.fillStyle = "rgba(0,0,0,0.7)";
@@ -1083,7 +1069,7 @@
         ctx.fillText("Nombre", xPosName, startY);
         ctx.fillText("Puntos", xPosScore, startY);
         let yPos = startY + (1.5 * lineHeight);
-        const subset = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + 10);
+        const subset = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + pageSize);
         for (let i = 0; i < subset.length; i++) {
           const data = subset[i];
           const realPos = data._index + 1;
@@ -1122,6 +1108,58 @@
         scrollDownButtonMesh = createButton("▼", 0.1, 0.1);
         scrollDownButtonMesh.position.set(-0.6, -0.4, -1.1);
         scene.add(scrollDownButtonMesh);
+      }
+
+      // Función para redibujar el segmento actual del leaderboard (scroll)
+      function drawLeaderboardSegment() {
+        if (!leaderboardMesh) return;
+        const canvas = leaderboardMesh.userData.canvas;
+        const ctx = leaderboardMesh.userData.ctx;
+        const planeWidth = leaderboardMesh.userData.planeWidth;
+        const lineHeight = 40 * resolutionFactor;
+        const extraLines = 4;
+        const canvasWidth = 512 * resolutionFactor;
+        const subset = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + pageSize);
+        const canvasHeight = lineHeight * (subset.length + extraLines);
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = 'Bold ' + (28 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Tabla de Clasificación", canvasWidth / 2, lineHeight);
+        const xPosPos   = 0.10 * canvasWidth;
+        const xPosName  = 0.40 * canvasWidth;
+        const xPosScore = 0.75 * canvasWidth;
+        let startY = lineHeight * 2.5;
+        ctx.font = 'Bold ' + (24 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "left";
+        ctx.fillText("Pos", xPosPos, startY);
+        ctx.fillText("Nombre", xPosName, startY);
+        ctx.fillText("Puntos", xPosScore, startY);
+        let yPos = startY + (1.5 * lineHeight);
+        for (let i = 0; i < subset.length; i++) {
+          const data = subset[i];
+          const realPos = data._index + 1;
+          if (playerPositionGlobal !== null && realPos === playerPositionGlobal) {
+            ctx.fillStyle = "green";
+            ctx.fillRect(0, yPos - lineHeight * 0.6, canvasWidth, lineHeight);
+            ctx.fillStyle = "#FFFFFF";
+          } else {
+            ctx.fillStyle = "#FFFFFF";
+          }
+          ctx.fillText(String(realPos), xPosPos, yPos);
+          ctx.fillText(data.name, xPosName, yPos);
+          ctx.fillText(Number(data.score).toFixed(3), xPosScore, yPos);
+          yPos += lineHeight;
+        }
+        if (playerPositionGlobal !== null) {
+          ctx.textAlign = "center";
+          ctx.fillText("Tu posición: " + playerPositionGlobal, canvasWidth / 2, yPos + lineHeight);
+        }
+        leaderboardMesh.userData.texture.needsUpdate = true;
       }
 
       function restartGame() {
@@ -1232,7 +1270,7 @@
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
             } else if (objHit === scrollDownButtonMesh) {
-              scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, currentLeaderboardResults.length - pageSize);
+              scoreboardStartIndex = Math.min(scoreboardStartIndex + pageSize, leaderboardResults.length - pageSize);
               drawLeaderboardSegment();
               setTimeout(() => { hasCollided = false; }, 500);
             }
