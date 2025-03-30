@@ -852,13 +852,46 @@
           }
         }
 
+        // Actualizar countdown y score si el juego sigue activo
         if (!gameOver) {
           const remaining = updateCountdown();
           updateScoreDisplay();
           if (remaining <= 0) {
             endGame();
           }
-        } else {
+        }
+
+        // --- Definir interactionPoints ANTES de usarla en el bloque final ---
+        let interactionPoints = [];
+        const session = renderer.xr.getSession();
+        if (session) {
+          const frame = renderer.xr.getFrame();
+          if (frame) {
+            for (const inputSource of session.inputSources) {
+              if (inputSource.hand) {
+                const indexTip = inputSource.hand.get('index-finger-tip');
+                if (indexTip) {
+                  const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
+                  if (jointPose) {
+                    interactionPoints.push(new THREE.Vector3(
+                      jointPose.transform.position.x,
+                      jointPose.transform.position.y,
+                      jointPose.transform.position.z
+                    ));
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (interactionPoints.length === 0) {
+          let camPos = new THREE.Vector3();
+          camera.getWorldPosition(camPos);
+          interactionPoints.push(camPos);
+        }
+        // ---------------------------------------------------------
+
+        if (gameOver) {
           // Modo final: detección de colisiones para botones de reinicio y scroll
           let finalButtons = [restartButtonMesh, scrollUpButtonMesh, scrollDownButtonMesh];
           for (const btn of finalButtons) {
@@ -890,38 +923,8 @@
               }
             }
           }
-        }
-
-        // Detección de colisiones (modo XR)
-        const session = renderer.xr.getSession();
-        let interactionPoints = [];
-        if (session) {
-          const frame = renderer.xr.getFrame();
-          if (frame) {
-            for (const inputSource of session.inputSources) {
-              if (inputSource.hand) {
-                const indexTip = inputSource.hand.get('index-finger-tip');
-                if (indexTip) {
-                  const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
-                  if (jointPose) {
-                    interactionPoints.push(new THREE.Vector3(
-                      jointPose.transform.position.x,
-                      jointPose.transform.position.y,
-                      jointPose.transform.position.z
-                    ));
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (interactionPoints.length === 0) {
-          let camPos = new THREE.Vector3();
-          camera.getWorldPosition(camPos);
-          interactionPoints.push(camPos);
-        }
-
-        if (!gameOver) {
+        } else {
+          // Detección de colisiones (modo normal) para las respuestas
           for (let panel of answers) {
             const panelPos = new THREE.Vector3();
             panel.getWorldPosition(panelPos);
@@ -930,7 +933,7 @@
               if (dist < collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
-                  // Registrar el tiempo de respuesta en milisegundos
+                  // Registrar tiempo de respuesta en milisegundos
                   correctResponseTimes.push(performance.now() - currentQuestionStartTime);
                   correctCount++;
                   playSound('successSound');
