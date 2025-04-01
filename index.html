@@ -353,7 +353,6 @@
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
-          // Se usa la posición central de la cámara
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.0);
           const minArc = 1.39626;
           const maxArc = Math.PI;
@@ -1091,7 +1090,7 @@
           }
         }
         if (arSupported) {
-          // Modo AR: se inicia llamando a init() y animate() (sin cambios respecto al código original)
+          // Modo AR: se inicia llamando a init() y animate()
           init();
           animate();
         } else {
@@ -1139,6 +1138,8 @@
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // Agregamos fondo transparente para que se vea el feed AR
+        renderer.setClearColor(0x000000, 0);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
@@ -1216,44 +1217,6 @@
 
       function animate() {
         renderer.setAnimationLoop(render);
-      }
-      
-      async function updateLeaderboardPreview(numAnswers) {
-        const collectionName = `Musicleaderboard_${numAnswers}`;
-        try {
-          let top3Query = query(
-            collection(db, collectionName),
-            orderBy("score", "desc"),
-            limit(3)
-          );
-          const querySnapshot = await getDocs(top3Query);
-          const results = [];
-          querySnapshot.forEach((docSnap) => {
-            results.push(docSnap.data());
-          });
-
-          const container = document.getElementById('leaderboardPreview');
-          container.innerHTML = "";
-          if (results.length > 0) {
-            let html = "<table>";
-            html += "<tr><th>Pos</th><th>Nombre</th><th>Puntos</th></tr>";
-            for (let i = 0; i < results.length; i++) {
-              html += `<tr>
-                <td>${i+1}</td>
-                <td>${results[i].name}</td>
-                <td>${results[i].score}</td>
-              </tr>`;
-            }
-            html += "</table>";
-            container.innerHTML = html;
-          } else {
-            container.innerHTML = "<p>No hay puntuaciones aún.</p>";
-          }
-        } catch (err) {
-          console.error("Error cargando top 3:", err);
-          document.getElementById('leaderboardPreview').innerHTML =
-            "<p>Error cargando clasificación.</p>";
-        }
       }
     </script>
   </body>
