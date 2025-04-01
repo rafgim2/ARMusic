@@ -146,7 +146,7 @@
         }
       }
 
-      /***** 2) AR y lógica del juego Notas Musicales (sin cambios) *****/
+      /***** 2) AR y lógica del juego Notas Musicales (sin cambios en la lógica AR) *****/
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
@@ -226,7 +226,7 @@
         ctx.fill();
       }
 
-      // 2.4 Actualizar el panel de pregunta (texto)
+      // 2.4 Actualizar el panel de pregunta (texto) en AR
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -273,7 +273,7 @@
         }
       }
 
-      // 2.5 Actualizar la imagen de la nota
+      // 2.5 Actualizar la imagen de la nota en AR
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -315,7 +315,7 @@
         scene.add(questionImageMesh);
       }
 
-      // 2.6 Actualizar el panel de respuesta
+      // 2.6 Actualizar el panel de respuesta en AR
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding  = 40 * resolutionFactor;
@@ -352,7 +352,7 @@
         mesh.userData.answer = value;
       }
 
-      // 2.7 Crear (o actualizar) los paneles de respuesta
+      // 2.7 Crear (o actualizar) los paneles de respuesta en AR
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
@@ -423,7 +423,7 @@
         createAnswerObjects(selectedNumAnswers, false);
       }
 
-      // 2.8 Efecto chispas
+      // 2.8 Efecto chispas en AR
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -476,7 +476,7 @@
         return new THREE.CanvasTexture(canvas);
       }
 
-      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta
+      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta en AR
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
@@ -491,7 +491,7 @@
         currentQuestionStartTime = performance.now();
       }
 
-      // 2.10 Inicializar escena, cámara, renderer y overlay (AR)
+      // 2.10 Inicializar escena, cámara, renderer y overlay en AR
       let initialCameraPos = new THREE.Vector3();
       let initialCameraDir = new THREE.Vector3();
 
@@ -510,7 +510,7 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Overlay inicial con imagen, link, selector de respuestas, tabla preview y input de nombre
+        // Overlay inicial con imagen, link, selector de respuestas, tabla preview e input de nombre
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
@@ -563,7 +563,13 @@
           selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
           playerName = document.getElementById('playerName').value || "Jugador";
           createAnswerObjects(selectedNumAnswers, true);
-          overlay.remove();
+          // En lugar de eliminar el overlay de inmediato, ocultamos los controles de entrada y dejamos visible la tabla preview
+          document.getElementById('playerName').style.display = 'none';
+          document.getElementById('numAnswers').style.display = 'none';
+          const containerRespuestas = document.querySelector('.respuestas-container');
+          if(containerRespuestas) containerRespuestas.style.display = 'none';
+          // Opcional: ocultar todo el overlay después de 3 segundos
+          setTimeout(() => { overlay.style.display = 'none'; }, 3000);
           generateQuestion();
           createScoreDisplay();
           gameReady = true;
@@ -646,7 +652,7 @@
         texture.needsUpdate = true;
       }
 
-      // 2.12 Bucle principal y renderizado (detección de colisiones)
+      // 2.12 Bucle principal y renderizado (detección de colisiones en AR)
       function animate() {
         renderer.setAnimationLoop(render);
       }
@@ -842,7 +848,7 @@
         drawLeaderboardSegment();
       }
 
-      // Función para crear la malla del leaderboard final en AR (incluye botones de reinicio y scroll)
+      // Función para crear la malla del leaderboard final en AR (con botones de reinicio y scroll)
       function createLeaderboardMesh() {
         if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
@@ -970,7 +976,7 @@
         });
       }, { once: true });
 
-      // 2.15 Evento táctil para raycasting (simula colisión con paneles o botones)
+      // 2.15 Evento táctil para raycasting en AR (simula colisión con paneles o botones)
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -1052,7 +1058,7 @@
         }
       }, false);
 
-      // 2.16 Reiniciar juego (se borran también las mallas del leaderboard y botones de scroll)
+      // 2.16 Reiniciar juego en AR (se eliminan también las mallas del leaderboard y botones de scroll)
       function restartGame() {
         if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
         if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
@@ -1137,6 +1143,16 @@
         startHTMLGame();
       }
 
+      // Función exclusiva para generar pregunta en modo HTML
+      function generateNewQuestionHTML() {
+        const randomIndex = Math.floor(Math.random() * notes.length);
+        const selectedNote = notes[randomIndex];
+        correctAnswer = selectedNote.note;
+        questionText = "¿Qué nota es esta?";
+        questionNoteImage = selectedNote.image;
+        currentQuestionStartTime = performance.now();
+      }
+
       function startHTMLGame() {
         correctCount = 0;
         wrongCount = 0;
@@ -1152,7 +1168,7 @@
       }
 
       function nextHTMLQuestion() {
-        generateQuestion();
+        generateNewQuestionHTML();
         updateHTMLQuestion();
         createHTMLAnswerButtons();
       }
@@ -1331,7 +1347,7 @@
         leaderboardDiv.appendChild(table);
       }
 
-      /***** 4) Inicialización común: Detectar soporte AR y elegir modo *****/
+      /***** 4) Inicialización común: detectar soporte AR y elegir modo *****/
       window.addEventListener('DOMContentLoaded', async () => {
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
