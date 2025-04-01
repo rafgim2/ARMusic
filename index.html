@@ -160,6 +160,9 @@
       import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
       import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
+      // Bandera para saber si estamos en modo HTML o AR
+      let htmlMode = false;
+
       // 2.1 Array de notas y precarga de texturas
       const notes = [
         { note: "DO",  image: "DO.png" },
@@ -236,7 +239,7 @@
         ctx.fill();
       }
 
-      // 2.4 Actualizar el panel de pregunta (texto)
+      // 2.4 Actualizar el panel de pregunta (texto) para AR
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -283,7 +286,7 @@
         }
       }
 
-      // 2.5 Actualizar la imagen de la nota
+      // 2.5 Actualizar la imagen de la nota para AR
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -325,7 +328,7 @@
         scene.add(questionImageMesh);
       }
 
-      // 2.6 Actualizar el panel de respuesta
+      // 2.6 Actualizar el panel de respuesta para AR
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding  = 40 * resolutionFactor;
@@ -362,7 +365,7 @@
         mesh.userData.answer = value;
       }
 
-      // 2.7 Crear (o actualizar) los paneles de respuesta
+      // 2.7 Crear (o actualizar) los paneles de respuesta para AR
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
@@ -493,10 +496,16 @@
         correctAnswer = selectedNote.note;
         questionText = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
-        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
-        updateQuestionPanel();
-        updateQuestionImage();
-        updateAnswerObjects();
+        // Solo actualizamos la escena AR si no estamos en modo HTML
+        if (!htmlMode) {
+          if (questionMesh) { 
+            scene.remove(questionMesh); 
+            questionMesh = null; 
+          }
+          updateQuestionPanel();
+          updateQuestionImage();
+          updateAnswerObjects();
+        }
         beepPlayed = false;
         currentQuestionStartTime = performance.now();
       }
@@ -1090,6 +1099,7 @@
 
       /***** 3) RUTINAS PARA LA VERSIÓN HTML (dispositivos no compatibles con AR) *****/
       function initHTML() {
+        htmlMode = true; // Activamos modo HTML
         const gameContainer = document.createElement('div');
         gameContainer.id = 'gameContainer';
         document.body.appendChild(gameContainer);
