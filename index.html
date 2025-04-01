@@ -2,24 +2,22 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <title>AR Notas Musicales</title>
+    <title>AR Notas Musicales / HTML Notas Musicales</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
       body { margin: 0; overflow: hidden; font-family: sans-serif; }
-      /* Overlay del menú inicial */
+      /* Estilos del overlay inicial (común) */
       #overlay {
         position: absolute;
-        padding-top: 100px;
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
-        background-color: #FFFFE0; /* amarillo claro */
+        min-height: 100vh;
+        background-color: #FFFFE0;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
         align-items: center;
-        color: #fff;
         text-align: center;
         z-index: 10;
         box-sizing: border-box;
@@ -48,8 +46,10 @@
       #overlay img {
         border-radius: 20px;
         max-width: 15%;
+        margin-bottom: 30px;
+        margin-top: 50px;
       }
-      /* Tabla preview (leaderboard) */
+      /* Tabla preview (usada en el overlay inicial) */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -76,16 +76,32 @@
           max-width: 70%;
         }
       }
-      /* Estilos para la versión HTML (modo “tradicional”) */
+      /* Estilos para el modo HTML */
       #gameContainer {
-        margin: 20px;
-        font-family: sans-serif;
-        text-align: center;
+        position: relative;
+        width: 100%;
+        min-height: 100vh;
+        background-color: #f0f0f0;
+        color: #000;
+        overflow-y: auto;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      #gameContainer > div, #gameContainer > img, #gameContainer > button {
+        margin-bottom: 20px;
       }
       #gameContainer button {
-        margin: 10px;
         padding: 10px 20px;
-        font-size: 16px;
+        font-size: 24px;
+      }
+      #gameContainer table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      #gameContainer th, #gameContainer td {
+        border: 1px solid #666;
+        padding: 4px;
+        text-align: center;
       }
     </style>
   </head>
@@ -97,13 +113,15 @@
     <audio id="beepSound" src="https://raw.githubusercontent.com/rafgim2/ARMultimusic/main/beep.wav" preload="auto"></audio>
     
     <script type="module">
-      /***** 1) Firebase y Firestore (colecciones "Musicleaderboard_X") *****/
+      /***** CONFIGURACIÓN: Firebase, Firestore, Three.js y ARButton *****/
       import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
       import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
       import { 
         getFirestore, collection, addDoc, orderBy, getDocs, serverTimestamp,
         query, where, limit, updateDoc, doc
       } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
+      import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
 
       const firebaseConfig = {
         apiKey: "AIzaSyD5EAMg-0p54f8bPq8SVdZ_ePg5Xso3cmg",
@@ -114,54 +132,47 @@
         appId: "1:408825932019:web:10f2079b590b4c9ca3af86",
         measurementId: "G-S78TM6PVRL"
       };
-
       const appFirebase = initializeApp(firebaseConfig);
       const analytics = getAnalytics(appFirebase);
       const db = getFirestore(appFirebase);
 
-      async function updateLeaderboardPreview(numAnswers) {
-        const collectionName = `Musicleaderboard_${numAnswers}`;
-        try {
-          let top3Query = query(
-            collection(db, collectionName),
-            orderBy("score", "desc"),
-            limit(3)
-          );
-          const querySnapshot = await getDocs(top3Query);
-          const results = [];
-          querySnapshot.forEach((docSnap) => {
-            results.push(docSnap.data());
-          });
+      /***** Variables Globales (compartidas entre AR y HTML) *****/
+      let camera, scene, renderer;
+      let correctAnswer;
+      let questionText = "";
+      let questionNoteImage = "";
+      let correctCount = 0;
+      let wrongCount = 0;
+      let gameStartTime = 0;
+      const gameDuration = 60; // segundos
+      let gameOver = false;
+      let correctResponseTimes = [];
+      let currentQuestionStartTime = 0;
+      let selectedNumAnswers = 4;
+      let playerName = "";
+      const resolutionFactor = 4;
+      // Variables AR específicas
+      let answers = [];
+      let hasCollided = false;
+      let questionMesh = null;
+      let questionImageMesh = null;
+      let countdownMesh = null, scoreMesh = null;
+      let restartButtonMesh = null;
+      let scrollUpButtonMesh = null;
+      let scrollDownButtonMesh = null;
+      let originalAnswerTransforms = null;
+      let beepPlayed = false;
+      let gameReady = false;
+      let countdownStarted = false;
+      let leaderboardMesh = null;
+      let leaderboardResults = [];
+      let scoreboardStartIndex = 0;
+      const pageSize = 10;
+      let playerPosition = null;
+      // Para HTML mode
+      let countdownInterval = null;
 
-          const container = document.getElementById('leaderboardPreview');
-          container.innerHTML = "";
-          if (results.length > 0) {
-            let html = "<table>";
-            html += "<tr><th>Pos</th><th>Nombre</th><th>Puntos</th></tr>";
-            for (let i = 0; i < results.length; i++) {
-              html += `<tr>
-                <td>${i+1}</td>
-                <td>${results[i].name}</td>
-                <td>${results[i].score}</td>
-              </tr>`;
-            }
-            html += "</table>";
-            container.innerHTML = html;
-          } else {
-            container.innerHTML = "<p>No hay puntuaciones aún.</p>";
-          }
-        } catch (err) {
-          console.error("Error cargando top 3:", err);
-          document.getElementById('leaderboardPreview').innerHTML =
-            "<p>Error cargando clasificación.</p>";
-        }
-      }
-
-      /***** 2) AR y lógica del juego Notas Musicales (modo AR) *****/
-      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.138.0/build/three.module.js';
-      import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.138.0/examples/jsm/webxr/ARButton.js';
-
-      // 2.1 Array de notas y precarga de texturas
+      /***** Datos del juego: Array de notas y precarga de texturas *****/
       const notes = [
         { note: "DO",  image: "DO.png" },
         { note: "RE",  image: "RE.png" },
@@ -182,45 +193,7 @@
         preloadedTextures[note.image] = textureLoader.load(baseURL + note.image);
       });
 
-      // 2.2 Variables globales y de juego AR
-      let camera, scene, renderer;
-      let correctAnswer;
-      let answers = []; // paneles de respuesta
-      let hasCollided = false;
-      let questionMesh = null;
-      let questionText = "";
-      let questionNoteImage = "";
-      let questionImageMesh = null;
-      let collisionThreshold = 0.2;
-      let sparksSystems = [];
-      let correctCount = 0;
-      let wrongCount = 0;
-      let gameStartTime = 0;
-      const gameDuration = 60; // segundos
-      let gameOver = false;
-      let countdownMesh = null, scoreMesh = null;
-      let restartButtonMesh = null;
-      let scrollUpButtonMesh = null;
-      let scrollDownButtonMesh = null;
-      let originalAnswerTransforms = null;
-      let beepPlayed = false;
-      let gameReady = false;
-      let countdownStarted = false;
-      const resolutionFactor = 4;
-      // Variables para leaderboard y puntaje online
-      let playerName = "";
-      let selectedNumAnswers = 4;
-      // Medición de tiempos de respuesta
-      let currentQuestionStartTime = 0;
-      let correctResponseTimes = [];
-      // Variables para la tabla final en AR
-      let leaderboardMesh = null;
-      let leaderboardResults = [];
-      let scoreboardStartIndex = 0;
-      const pageSize = 10;
-      let playerPosition = null;
-
-      /***** 2.3 Funciones auxiliares (AR) *****/
+      /***** Función auxiliar: dibujo de rectángulo redondeado *****/
       function drawRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -235,20 +208,27 @@
         ctx.closePath();
         ctx.fill();
       }
-      function createCircleTexture() {
-        const size = 128;
-        const canvas = document.createElement('canvas');
-        canvas.width  = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, size, size);
-        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, size, size);
-        return new THREE.CanvasTexture(canvas);
+
+      /***** FUNCIONES DEL JUEGO (COMUNES) *****/
+      // Genera una pregunta aleatoria (nota)
+      function generateQuestion() {
+        const randomIndex = Math.floor(Math.random() * notes.length);
+        const selectedNote = notes[randomIndex];
+        correctAnswer = selectedNote.note;
+        questionText = "¿Qué nota es esta?";
+        questionNoteImage = selectedNote.image;
+        // En modo AR se actualizan panel e imagen
+        if (scene && renderer.xr.isPresenting) {
+          if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
+          updateQuestionPanel();
+          updateQuestionImage();
+          updateAnswerObjects();
+          beepPlayed = false;
+          currentQuestionStartTime = performance.now();
+        }
       }
+
+      /***** FUNCIONES DEL MODO AR (se mantienen sin cambios) *****/
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -293,6 +273,7 @@
           scene.add(questionMesh);
         }
       }
+
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -332,6 +313,7 @@
         questionImageMesh.position.set(0, 0.25, -0.82);
         scene.add(questionImageMesh);
       }
+
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding  = 40 * resolutionFactor;
@@ -367,6 +349,7 @@
         mesh.geometry = new THREE.PlaneGeometry(newWidth, newHeight);
         mesh.userData.answer = value;
       }
+
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
@@ -431,9 +414,11 @@
           }
         }
       }
+
       function updateAnswerObjects() {
         createAnswerObjects(selectedNumAnswers, false);
       }
+
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -470,100 +455,22 @@
           lastUpdate: performance.now()
         });
       }
-      function generateQuestion() {
-        const randomIndex = Math.floor(Math.random() * notes.length);
-        const selectedNote = notes[randomIndex];
-        correctAnswer = selectedNote.note;
-        questionText = "¿Qué nota es esta?";
-        questionNoteImage = selectedNote.image;
-        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
-        updateQuestionPanel();
-        updateQuestionImage();
-        updateAnswerObjects();
-        beepPlayed = false;
-        currentQuestionStartTime = performance.now();
+
+      function createCircleTexture() {
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width  = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, size, size);
+        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        return new THREE.CanvasTexture(canvas);
       }
-      let initialCameraPos = new THREE.Vector3();
-      let initialCameraDir = new THREE.Vector3();
-      function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
 
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        light.position.set(0.5, 1, 0.25);
-        scene.add(light);
-
-        window.addEventListener('resize', onWindowResize, false);
-
-        // Overlay inicial con imagen, link, selector de respuestas, leaderboard preview e input de nombre
-        const overlay = document.createElement('div');
-        overlay.id = 'overlay';
-        overlay.innerHTML =
-          '<img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:50px;">' +
-          '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
-          '<div class="respuestas-container">' +
-            '<label for="numAnswers">Respuestas:</label>' +
-            '<select id="numAnswers">' +
-              '<option value="4">4</option>' +
-              '<option value="5">5</option>' +
-              '<option value="6">6</option>' +
-              '<option value="7">7</option>' +
-              '<option value="8">8</option>' +
-              '<option value="9">9</option>' +
-              '<option value="10">10</option>' +
-            '</select>' +
-          '</div>' +
-          '<div id="leaderboardPreview"></div>' +
-          '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">';
-
-        const arButton = ARButton.createButton(renderer, {
-          requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
-            ? ['hit-test']
-            : ['hit-test', 'hand-tracking']
-        });
-        if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
-        arButton.style.position = 'absolute';
-        arButton.style.top = '600px';
-        arButton.style.left = '100%';
-        arButton.style.transform = 'translateX(0%)';
-        arButton.style.width = '150px';
-        arButton.style.height = '50px';
-        arButton.style.fontSize = '16px';
-        arButton.style.backgroundColor = 'green';
-        arButton.style.color = 'white';
-        overlay.appendChild(arButton);
-        document.body.appendChild(overlay);
-
-        const selectAnswers = document.getElementById('numAnswers');
-        selectAnswers.addEventListener('change', () => {
-          const num = parseInt(selectAnswers.value) || 4;
-          updateLeaderboardPreview(num);
-        });
-        updateLeaderboardPreview(4);
-
-        renderer.xr.addEventListener('sessionstart', () => {
-          camera.getWorldPosition(initialCameraPos);
-          camera.getWorldDirection(initialCameraDir);
-          initialCameraDir.normalize();
-          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
-          playerName = document.getElementById('playerName').value || "Jugador";
-          createAnswerObjects(selectedNumAnswers, true);
-          overlay.remove();
-          generateQuestion();
-          createScoreDisplay();
-          gameReady = true;
-        });
-      }
-      function onWindowResize() {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
       function startCountdown() {
         gameStartTime = performance.now();
         const canvas = document.createElement('canvas');
@@ -580,6 +487,7 @@
         countdownMesh.userData = { canvas, ctx, texture };
         scene.add(countdownMesh);
       }
+
       function createScoreDisplay() {
         const canvas = document.createElement('canvas');
         canvas.width  = 256 * resolutionFactor;
@@ -595,6 +503,7 @@
         scoreMesh.userData = { canvas, ctx, texture };
         scene.add(scoreMesh);
       }
+
       function updateCountdown() {
         if (!countdownMesh) return;
         const { canvas, ctx, texture } = countdownMesh.userData;
@@ -616,6 +525,7 @@
         }
         return remaining;
       }
+
       function updateScoreDisplay() {
         if (!scoreMesh) return;
         const { canvas, ctx, texture } = scoreMesh.userData;
@@ -627,9 +537,7 @@
         ctx.fillText(`Aciertos: ${correctCount} | Fallos: ${wrongCount}`, canvas.width/2, canvas.height/2);
         texture.needsUpdate = true;
       }
-      function animate() {
-        renderer.setAnimationLoop(render);
-      }
+
       function render(timestamp, xrFrame) {
         renderer.render(scene, camera);
         answers.forEach((mesh, index) => {
@@ -638,6 +546,7 @@
             mesh.position.y = baseY + 0.02 * Math.sin(timestamp * 0.005 + index);
           }
         });
+
         if (gameReady && !countdownStarted) {
           startCountdown();
           const timerSound = document.getElementById('timerSound');
@@ -645,6 +554,7 @@
           timerSound.play().catch(e => console.error(e));
           countdownStarted = true;
         }
+
         const now = performance.now();
         for (let i = sparksSystems.length - 1; i >= 0; i--) {
           const sys = sparksSystems[i];
@@ -668,6 +578,7 @@
             sparksSystems.splice(i,1);
           }
         }
+
         if (!gameOver) {
           const remaining = updateCountdown();
           updateScoreDisplay();
@@ -675,6 +586,8 @@
             endGame();
           }
         }
+
+        // Detección de colisiones en AR (raycasting con manos o cámara)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session && xrFrame) {
@@ -699,13 +612,14 @@
           camera.getWorldPosition(cameraPos);
           interactionPoints.push(cameraPos);
         }
+
         if (!gameOver) {
           for (let panel of answers) {
             const panelPos = new THREE.Vector3();
             panel.getWorldPosition(panelPos);
             for (const pt of interactionPoints) {
               const dist = pt.distanceTo(panelPos);
-              if (dist < collisionThreshold && !hasCollided) {
+              if (dist <  collisionThreshold && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
                   const responseTime = performance.now() - currentQuestionStartTime;
@@ -744,6 +658,7 @@
           }
         }
       }
+
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -811,6 +726,7 @@
         createLeaderboardMesh();
         drawLeaderboardSegment();
       }
+
       function createLeaderboardMesh() {
         if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
@@ -845,6 +761,7 @@
         scrollDownButtonMesh.position.set(-0.6, -0.4, -1.1);
         scene.add(scrollDownButtonMesh);
       }
+
       function drawLeaderboardSegment() {
         if (!leaderboardMesh) return;
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
@@ -900,6 +817,7 @@
         scrollUpButtonMesh.position.set(-planeWidth * 0.5 - 0.1, planeHeight * 0.35, -1.1);
         scrollDownButtonMesh.position.set(-planeWidth * 0.5 - 0.1, -planeHeight * 0.35, -1.1);
       }
+
       function createButton(text, planeWidth = 0.3, planeHeight = 0.1) {
         const canvas = document.createElement('canvas');
         canvas.width = 256 * resolutionFactor;
@@ -919,165 +837,42 @@
         const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         return new THREE.Mesh(geom, mat);
       }
-      window.addEventListener('touchstart', function unlockAudio() {
-        const successEl = document.getElementById('successSound');
-        const errorEl = document.getElementById('errorSound');
-        [successEl, errorEl].forEach(audioEl => {
-          audioEl.play().then(() => {
-            audioEl.pause();
-            audioEl.currentTime = 0;
-          }).catch(e => console.error(e));
-        });
-      }, { once: true });
-      window.addEventListener('touchstart', function(event) {
-        if (!/Mobi|Android/i.test(navigator.userAgent)) return;
-        const touch = event.touches[0];
-        const x = (touch.clientX / window.innerWidth) * 2 - 1;
-        const y = - (touch.clientY / window.innerHeight) * 2 + 1;
-        const mouseVector = new THREE.Vector2(x, y);
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(mouseVector, camera);
-        let objectsToIntersect = [];
-        if (!gameOver) {
-          objectsToIntersect = answers;
-        } else {
-          if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
-          if (scrollUpButtonMesh) objectsToIntersect.push(scrollUpButtonMesh);
-          if (scrollDownButtonMesh) objectsToIntersect.push(scrollDownButtonMesh);
-        }
-        const intersects = raycaster.intersectObjects(objectsToIntersect);
-        if (intersects.length > 0 && !hasCollided) {
-          const objHit = intersects[0].object;
-          hasCollided = true;
-          if (!gameOver) {
-            if (objHit.userData.answer === correctAnswer) {
-              const responseTime = performance.now() - currentQuestionStartTime;
-              correctResponseTimes.push(responseTime);
-              correctCount++;
-              const successSound = document.getElementById('successSound');
-              const successClone = successSound.cloneNode();
-              successClone.play().catch(e => console.error(e));
-              createSparksEffect(objHit.position);
-              if (questionMesh) questionMesh.visible = false;
-              if (questionImageMesh) questionImageMesh.visible = false;
-              answers.forEach(a => a.visible = false);
-              setTimeout(() => {
-                if (!gameOver) {
-                  generateQuestion();
-                  if (questionMesh) questionMesh.visible = true;
-                  if (questionImageMesh) questionImageMesh.visible = true;
-                  answers.forEach(a => a.visible = true);
-                }
-                hasCollided = false;
-              }, 1000);
-            } else {
-              wrongCount++;
-              const errorSound = document.getElementById('errorSound');
-              const errorClone = errorSound.cloneNode();
-              errorClone.play().catch(e => console.error(e));
-              answers.forEach(a => a.material.color.set(0xff0000));
-              setTimeout(() => {
-                answers.forEach(a => a.material.color.set(0xffffff));
-                hasCollided = false;
-              }, 500);
-            }
-          } else {
-            if (objHit === restartButtonMesh) {
-              const successSound = document.getElementById('successSound');
-              const successClone = successSound.cloneNode();
-              successClone.play().catch(e => console.error(e));
-              createSparksEffect(objHit.position);
-              objHit.visible = false;
-              setTimeout(() => {
-                restartGame();
-                hasCollided = false;
-              }, 1000);
-            } else if (objHit === scrollUpButtonMesh) {
-              scoreboardStartIndex -= pageSize;
-              if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
-              drawLeaderboardSegment();
-              setTimeout(() => { hasCollided = false; }, 500);
-            } else if (objHit === scrollDownButtonMesh) {
-              scoreboardStartIndex += pageSize;
-              if (scoreboardStartIndex >= leaderboardResults.length) {
-                scoreboardStartIndex = leaderboardResults.length - pageSize;
-                if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
-              }
-              drawLeaderboardSegment();
-              setTimeout(() => { hasCollided = false; }, 500);
-            }
-          }
-        }
-      }, false);
-      function restartGame() {
-        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
-        if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
-        if (countdownMesh) { scene.remove(countdownMesh); countdownMesh = null; }
-        if (scoreMesh) { scene.remove(scoreMesh); scoreMesh = null; }
-        if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
-        if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
-        if (scrollUpButtonMesh) { scene.remove(scrollUpButtonMesh); scrollUpButtonMesh = null; }
-        if (scrollDownButtonMesh) { scene.remove(scrollDownButtonMesh); scrollDownButtonMesh = null; }
-        answers.forEach(panel => scene.remove(panel));
-        answers = [];
-        correctCount = 0;
-        wrongCount = 0;
-        gameStartTime = performance.now();
-        gameOver = false;
-        correctResponseTimes = [];
-        createAnswerObjects(selectedNumAnswers, true);
-        generateQuestion();
-        countdownStarted = false;
-        gameReady = true;
-        createScoreDisplay();
-        const timerSound = document.getElementById('timerSound');
-        timerSound.currentTime = 0;
-        timerSound.loop = false;
-        timerSound.play().catch(e => console.error(e));
-      }
 
-      /***** 3) Funciones para el modo HTML (dispositivos no compatibles con AR) *****/
+      /***** MODO HTML: Funciones e interfaz *****/
       function initHTML() {
-        // Solicitar nombre y número de respuestas (puedes adaptar esto según prefieras)
-        playerName = prompt("Ingresa tu nombre:", "Jugador") || "Jugador";
-        selectedNumAnswers = parseInt(prompt("Número de respuestas (4-10):", "4")) || 4;
+        // Crear contenedor HTML
         const gameContainer = document.createElement('div');
         gameContainer.id = 'gameContainer';
         document.body.appendChild(gameContainer);
-        // Pregunta
+
+        // Elementos de la interfaz HTML
         const questionDiv = document.createElement('div');
         questionDiv.id = 'question';
         questionDiv.style.fontSize = '32px';
-        questionDiv.style.marginBottom = '20px';
         gameContainer.appendChild(questionDiv);
-        // Imagen de la nota
-        const noteImage = document.createElement('img');
-        noteImage.id = 'questionImage';
-        noteImage.style.maxWidth = '200px';
-        noteImage.style.display = 'block';
-        noteImage.style.margin = '0 auto 20px auto';
-        gameContainer.appendChild(noteImage);
-        // Respuestas
+
+        const imageEl = document.createElement('img');
+        imageEl.id = 'questionImage';
+        imageEl.style.maxWidth = '200px';
+        gameContainer.appendChild(imageEl);
+
         const answersDiv = document.createElement('div');
         answersDiv.id = 'answers';
         answersDiv.style.display = 'flex';
         answersDiv.style.flexWrap = 'wrap';
         answersDiv.style.gap = '10px';
-        answersDiv.style.marginBottom = '20px';
         gameContainer.appendChild(answersDiv);
-        // Countdown
+
         const countdownDiv = document.createElement('div');
         countdownDiv.id = 'countdown';
         countdownDiv.style.fontSize = '24px';
-        countdownDiv.style.marginBottom = '20px';
         gameContainer.appendChild(countdownDiv);
-        // Score
+
         const scoreDiv = document.createElement('div');
         scoreDiv.id = 'score';
         scoreDiv.style.fontSize = '24px';
-        scoreDiv.style.marginBottom = '20px';
         gameContainer.appendChild(scoreDiv);
-        // Leaderboard
+
         const leaderboardDiv = document.createElement('div');
         leaderboardDiv.id = 'leaderboard';
         leaderboardDiv.style.maxWidth = "80%";
@@ -1086,13 +881,14 @@
         leaderboardDiv.style.backgroundColor = "#fff";
         leaderboardDiv.style.color = "#000";
         leaderboardDiv.style.fontSize = "12px";
-        leaderboardDiv.style.marginBottom = "20px";
         leaderboardDiv.style.border = "1px solid #000";
         leaderboardDiv.style.borderRadius = "6px";
         leaderboardDiv.style.padding = "4px";
         gameContainer.appendChild(leaderboardDiv);
+
         startHTMLGame();
       }
+
       function startHTMLGame() {
         correctCount = 0;
         wrongCount = 0;
@@ -1106,39 +902,37 @@
         nextHTMLQuestion();
         updateHTMLScore();
       }
-      function generateHTMLQuestion() {
-        const randomIndex = Math.floor(Math.random() * notes.length);
-        const selectedNote = notes[randomIndex];
-        correctAnswer = selectedNote.note;
-        questionText = "¿Qué nota es esta?";
-        questionNoteImage = selectedNote.image;
-        currentQuestionStartTime = performance.now();
-      }
+
       function nextHTMLQuestion() {
-        generateHTMLQuestion();
+        generateQuestion();
         updateHTMLQuestion();
         createHTMLAnswerButtons();
+        currentQuestionStartTime = performance.now();
       }
+
       function updateHTMLQuestion() {
-        document.getElementById('question').innerText = questionText;
-        const imgEl = document.getElementById('questionImage');
-        if(preloadedTextures[questionNoteImage]) {
-          imgEl.src = preloadedTextures[questionNoteImage].image.currentSrc || preloadedTextures[questionNoteImage].image.src;
+        const questionDiv = document.getElementById('question');
+        questionDiv.innerText = questionText;
+        const imageEl = document.getElementById('questionImage');
+        if (questionNoteImage && preloadedTextures[questionNoteImage]) {
+          // Usamos la URL de la imagen precargada
+          imageEl.src = baseURL + questionNoteImage;
         } else {
-          imgEl.src = baseURL + questionNoteImage;
+          imageEl.src = "";
         }
       }
+
       function createHTMLAnswerButtons() {
         const answersDiv = document.getElementById('answers');
-        answersDiv.innerHTML = '';
-        let wrongSet = new Set();
-        while(wrongSet.size < (selectedNumAnswers - 1)) {
+        answersDiv.innerHTML = "";
+        const wrongAnswers = new Set();
+        while (wrongAnswers.size < selectedNumAnswers - 1) {
           const rnd = Math.floor(Math.random() * notes.length);
           const candidate = notes[rnd].note;
-          if(candidate !== correctAnswer) wrongSet.add(candidate);
+          if (candidate !== correctAnswer) wrongAnswers.add(candidate);
         }
-        const answersArray = [correctAnswer, ...wrongSet];
-        answersArray.sort(() => Math.random()-0.5);
+        const answersArray = [correctAnswer, ...wrongAnswers];
+        answersArray.sort(() => Math.random() - 0.5);
         answersArray.forEach(ans => {
           const btn = document.createElement('button');
           btn.innerText = ans;
@@ -1148,17 +942,18 @@
           answersDiv.appendChild(btn);
         });
       }
+
       function handleHTMLAnswer(selected, btn) {
-        if(gameOver) return;
-        if(selected === correctAnswer) {
+        if (gameOver) return;
+        if (selected === correctAnswer) {
           btn.style.backgroundColor = "lightgreen";
           const responseTime = performance.now() - currentQuestionStartTime;
           correctResponseTimes.push(responseTime);
           correctCount++;
           updateHTMLScore();
           const successSound = document.getElementById('successSound');
-          const clone = successSound.cloneNode();
-          clone.play().catch(e => console.error(e));
+          const successClone = successSound.cloneNode();
+          successClone.play().catch(e => console.error(e));
           setTimeout(() => {
             btn.style.backgroundColor = "";
             nextHTMLQuestion();
@@ -1168,124 +963,129 @@
           wrongCount++;
           updateHTMLScore();
           const errorSound = document.getElementById('errorSound');
-          const errClone = errorSound.cloneNode();
-          errClone.play().catch(e => console.error(e));
+          const errorClone = errorSound.cloneNode();
+          errorClone.play().catch(e => console.error(e));
           setTimeout(() => {
             btn.style.backgroundColor = "";
           }, 500);
         }
       }
+
       function startHTMLCountdown() {
-        if(window.countdownInterval) clearInterval(window.countdownInterval);
-        window.countdownInterval = setInterval(()=>{
-          const elapsed = (performance.now() - gameStartTime)/1000;
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => {
+          const elapsed = (performance.now() - gameStartTime) / 1000;
           const remaining = Math.max(0, gameDuration - elapsed);
           document.getElementById('countdown').innerText = `Tiempo: ${Math.floor(remaining)}`;
-          if(remaining <= 0) {
-            clearInterval(window.countdownInterval);
+          if (remaining <= 0) {
+            clearInterval(countdownInterval);
             endHTMLGame();
           }
         }, 1000);
       }
+
       function updateHTMLScore() {
         document.getElementById('score').innerText = `Aciertos: ${correctCount} | Fallos: ${wrongCount}`;
       }
+
       async function endHTMLGame() {
         gameOver = true;
         let avgTime = 0;
-        if(correctResponseTimes.length > 0) {
+        if (correctResponseTimes.length > 0) {
           let sum = correctResponseTimes.reduce((a, b) => a + b, 0);
           avgTime = sum / correctResponseTimes.length / 1000;
         }
         const rawScore = (correctCount - wrongCount) - avgTime;
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
-        let docsFound = await getDocs(query(collection(db, collectionName), where("name", "==", playerName), limit(1)));
-        if(!docsFound.empty) {
+        let docsFound = await getDocs(
+          query(
+            collection(db, collectionName),
+            where("name", "==", playerName),
+            limit(1)
+          )
+        );
+        if (!docsFound.empty) {
           const docToUpdate = docsFound.docs[0];
-          await updateDoc(doc(db, collectionName, docToUpdate.id), { score: finalScore, timestamp: serverTimestamp() });
+          await updateDoc(doc(db, collectionName, docToUpdate.id), {
+            score: finalScore,
+            timestamp: serverTimestamp()
+          });
         } else {
-          await addDoc(collection(db, collectionName), { name: playerName, score: finalScore, timestamp: serverTimestamp() });
+          await addDoc(collection(db, collectionName), {
+            name: playerName,
+            score: finalScore,
+            timestamp: serverTimestamp()
+          });
         }
-        let qLeaderboard = query(collection(db, collectionName), orderBy("score", "desc"));
+        let qLeaderboard = query(
+          collection(db, collectionName),
+          orderBy("score", "desc")
+        );
         let querySnapshot;
         try {
           querySnapshot = await getDocs(qLeaderboard);
-        } catch(e) {
-          console.error("Error consultando el leaderboard:", e);
+        } catch (err) {
+          console.error("Error consultando el leaderboard:", err);
           return;
         }
-        leaderboardResults = [];
+        const leaderboardResults = [];
         let idx = 0;
-        querySnapshot.forEach(docSnap=>{
+        querySnapshot.forEach(docSnap => {
           let data = docSnap.data();
           leaderboardResults.push({ ...data, _index: idx });
           idx++;
         });
-        let playerIndex = leaderboardResults.findIndex(r=> r.name===playerName && r.score===finalScore);
-        let playerPos = (playerIndex>=0)? (playerIndex+1) : null;
-        displayHTMLLeaderboard(leaderboardResults, playerPos, finalScore);
-        const gameContainer = document.getElementById('gameContainer');
+        let playerIndex = leaderboardResults.findIndex(r => r.name === playerName && r.score === finalScore);
+        const playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
+        displayHTMLLeaderboard(leaderboardResults, playerPosition, finalScore);
         const restartBtn = document.createElement('button');
         restartBtn.innerText = "Reiniciar";
-        restartBtn.style.fontSize = '24px';
-        restartBtn.style.padding = '10px 20px';
-        restartBtn.onclick = ()=>{
+        restartBtn.onclick = () => {
           restartBtn.remove();
-          document.getElementById('leaderboard').innerHTML = '';
-          document.getElementById('question').innerText = '';
-          document.getElementById('answers').innerHTML = '';
+          document.getElementById('leaderboard').innerHTML = "";
+          document.getElementById('question').innerText = "";
+          document.getElementById('answers').innerHTML = "";
           startHTMLGame();
         };
-        gameContainer.appendChild(restartBtn);
+        document.getElementById('gameContainer').appendChild(restartBtn);
       }
+
       function displayHTMLLeaderboard(leaderboardResults, playerPosition, finalScore) {
         const leaderboardDiv = document.getElementById('leaderboard');
-        leaderboardDiv.innerHTML = '';
+        leaderboardDiv.innerHTML = "";
         const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
         const headerRow = document.createElement('tr');
-        ['Pos', 'Nombre', 'Puntos'].forEach(headerText=>{
+        ['Pos', 'Nombre', 'Puntos'].forEach(text => {
           const th = document.createElement('th');
-          th.innerText = headerText;
-          th.style.border = '1px solid #666';
-          th.style.padding = '4px';
-          th.style.textAlign = 'center';
+          th.innerText = text;
           headerRow.appendChild(th);
         });
         table.appendChild(headerRow);
-        leaderboardResults.forEach((data,index)=>{
+        leaderboardResults.forEach((data, index) => {
           const row = document.createElement('tr');
-          if(playerPosition !== null && (index+1)===playerPosition) {
+          if (playerPosition !== null && (index + 1) === playerPosition) {
             row.style.backgroundColor = 'green';
             row.style.color = '#fff';
           }
           const posCell = document.createElement('td');
-          posCell.innerText = index+1;
-          posCell.style.border = '1px solid #666';
-          posCell.style.padding = '4px';
-          posCell.style.textAlign = 'center';
-          row.appendChild(posCell);
+          posCell.innerText = index + 1;
           const nameCell = document.createElement('td');
           nameCell.innerText = data.name;
-          nameCell.style.border = '1px solid #666';
-          nameCell.style.padding = '4px';
-          nameCell.style.textAlign = 'center';
-          row.appendChild(nameCell);
           const scoreCell = document.createElement('td');
           scoreCell.innerText = data.score;
-          scoreCell.style.border = '1px solid #666';
-          scoreCell.style.padding = '4px';
-          scoreCell.style.textAlign = 'center';
+          row.appendChild(posCell);
+          row.appendChild(nameCell);
           row.appendChild(scoreCell);
           table.appendChild(row);
         });
         leaderboardDiv.appendChild(table);
       }
 
-      /***** 4) Inicialización según soporte AR o HTML *****/
+      /***** INICIALIZACIÓN: Selección de modo AR o HTML *****/
+      // Se elimina la llamada incondicional a init() y animate() y se comprueba soporte en DOMContentLoaded
       window.addEventListener('DOMContentLoaded', async () => {
+        // Comprobación de soporte AR
         let arSupported = false;
         if (navigator.xr) {
           try {
@@ -1295,14 +1095,171 @@
           }
         }
         if (arSupported) {
+          // Modo AR: se llama a init() (ya definida) y animate()
           init();
           animate();
         } else {
-          const overlay = document.getElementById('overlay');
-          if (overlay) overlay.remove();
-          initHTML();
+          // Modo HTML: se crea un overlay similar con selector y botón para iniciar el juego HTML
+          const overlay = document.createElement('div');
+          overlay.id = 'overlay';
+          overlay.innerHTML =
+            '<img src="ARMusic2.jpeg" alt="ARMusic">' +
+            '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
+            '<div class="respuestas-container">' +
+              '<label for="numAnswers">Respuestas:</label>' +
+              '<select id="numAnswers">' +
+                '<option value="4">4</option>' +
+                '<option value="5">5</option>' +
+                '<option value="6">6</option>' +
+                '<option value="7">7</option>' +
+                '<option value="8">8</option>' +
+                '<option value="9">9</option>' +
+                '<option value="10">10</option>' +
+              '</select>' +
+            '</div>' +
+            '<div id="leaderboardPreview"></div>' +
+            '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">' +
+            '<button id="startHTMLBtn" style="font-size:16px; padding:10px 20px; margin-top:20px;">AR no compatible, Iniciar Juego HTML</button>';
+          document.body.appendChild(overlay);
+          const selectAnswers = document.getElementById('numAnswers');
+          selectAnswers.addEventListener('change', () => {
+            const num = parseInt(selectAnswers.value) || 4;
+            updateLeaderboardPreview(num);
+          });
+          updateLeaderboardPreview(4);
+          document.getElementById('startHTMLBtn').addEventListener('click', () => {
+            selectedNumAnswers = parseInt(selectAnswers.value) || 4;
+            playerName = document.getElementById('playerName').value || "Jugador";
+            overlay.remove();
+            initHTML();
+          });
         }
       });
+
+      /***** FUNCIONES DEL MODO AR que se usan en init() *****/
+      let initialCameraPos = new THREE.Vector3();
+      let initialCameraDir = new THREE.Vector3();
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        light.position.set(0.5, 1, 0.25);
+        scene.add(light);
+
+        window.addEventListener('resize', onWindowResize, false);
+
+        const overlay = document.createElement('div');
+        overlay.id = 'overlay';
+        overlay.innerHTML =
+          '<img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:50px;">' +
+          '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
+          '<div class="respuestas-container">' +
+            '<label for="numAnswers">Respuestas:</label>' +
+            '<select id="numAnswers">' +
+              '<option value="4">4</option>' +
+              '<option value="5">5</option>' +
+              '<option value="6">6</option>' +
+              '<option value="7">7</option>' +
+              '<option value="8">8</option>' +
+              '<option value="9">9</option>' +
+              '<option value="10">10</option>' +
+            '</select>' +
+          '</div>' +
+          '<div id="leaderboardPreview"></div>' +
+          '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">';
+        
+        const arButton = ARButton.createButton(renderer, {
+          requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
+            ? ['hit-test']
+            : ['hit-test', 'hand-tracking']
+        });
+        if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
+        arButton.style.position = 'absolute';
+        arButton.style.top = '600px';
+        arButton.style.left = '100%';
+        arButton.style.transform = 'translateX(0%)';
+        arButton.style.width = '150px';
+        arButton.style.height = '50px';
+        arButton.style.fontSize = '16px';
+        arButton.style.backgroundColor = 'green';
+        arButton.style.color = 'white';
+        overlay.appendChild(arButton);
+        document.body.appendChild(overlay);
+
+        const selectAnswers = document.getElementById('numAnswers');
+        selectAnswers.addEventListener('change', () => {
+          const num = parseInt(selectAnswers.value) || 4;
+          updateLeaderboardPreview(num);
+        });
+        updateLeaderboardPreview(4);
+        renderer.xr.addEventListener('sessionstart', () => {
+          camera.getWorldPosition(initialCameraPos);
+          camera.getWorldDirection(initialCameraDir);
+          initialCameraDir.normalize();
+          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
+          playerName = document.getElementById('playerName').value || "Jugador";
+          createAnswerObjects(selectedNumAnswers, true);
+          overlay.remove();
+          generateQuestion();
+          createScoreDisplay();
+          gameReady = true;
+        });
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        renderer.setAnimationLoop(render);
+      }
+
+      /***** Función para actualizar el leaderboard preview (usada en el overlay) *****/
+      async function updateLeaderboardPreview(numAnswers) {
+        const collectionName = `Musicleaderboard_${numAnswers}`;
+        try {
+          let top3Query = query(
+            collection(db, collectionName),
+            orderBy("score", "desc"),
+            limit(3)
+          );
+          const querySnapshot = await getDocs(top3Query);
+          const results = [];
+          querySnapshot.forEach((docSnap) => {
+            results.push(docSnap.data());
+          });
+
+          const container = document.getElementById('leaderboardPreview');
+          container.innerHTML = "";
+          if (results.length > 0) {
+            let html = "<table>";
+            html += "<tr><th>Pos</th><th>Nombre</th><th>Puntos</th></tr>";
+            for (let i = 0; i < results.length; i++) {
+              html += `<tr>
+                <td>${i+1}</td>
+                <td>${results[i].name}</td>
+                <td>${results[i].score}</td>
+              </tr>`;
+            }
+            html += "</table>";
+            container.innerHTML = html;
+          } else {
+            container.innerHTML = "<p>No hay puntuaciones aún.</p>";
+          }
+        } catch (err) {
+          console.error("Error cargando top 3:", err);
+          document.getElementById('leaderboardPreview').innerHTML =
+            "<p>Error cargando clasificación.</p>";
+        }
+      }
     </script>
   </body>
 </html>
