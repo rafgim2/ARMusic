@@ -135,7 +135,7 @@
           const container = document.getElementById('leaderboardPreview');
           container.innerHTML = "";
           if (results.length > 0) {
-            let html = "<table>";
+            let html = "<table style='margin:0 auto;'>";
             html += "<tr><th>Pos</th><th>Nombre</th><th>Puntos</th></tr>";
             for (let i = 0; i < results.length; i++) {
               html += `<tr>
@@ -163,7 +163,7 @@
       // Bandera para saber si estamos en modo HTML o AR
       let htmlMode = false;
 
-      // 2.1 Array de notas y precarga de texturas
+      // 2.1 Array de notas y precarga de texturas para AR
       const notes = [
         { note: "DO",  image: "DO.png" },
         { note: "RE",  image: "RE.png" },
@@ -184,10 +184,18 @@
         preloadedTextures[note.image] = textureLoader.load(baseURL + note.image);
       });
 
+      // Precacheo de imágenes para la rama HTML
+      const preloadedHTMLImages = {};
+      notes.forEach(note => {
+        const img = new Image();
+        img.src = baseURL + note.image;
+        preloadedHTMLImages[note.image] = img;
+      });
+
       // 2.2 Variables globales y de juego (para AR y HTML)
       let camera, scene, renderer;
       let correctAnswer;
-      let answers = []; // paneles de respuesta
+      let answers = []; // paneles de respuesta (AR)
       let hasCollided = false;
       let questionMesh = null;
       let questionText = "";
@@ -1120,6 +1128,7 @@
         answersDiv.style.flexWrap = 'wrap';
         answersDiv.style.gap = '10px';
         answersDiv.style.marginBottom = '20px';
+        answersDiv.style.justifyContent = 'center';  // Centrado de respuestas
         gameContainer.appendChild(answersDiv);
 
         const countdownDiv = document.createElement('div');
@@ -1142,7 +1151,7 @@
         leaderboardDiv.style.backgroundColor = "#fff";
         leaderboardDiv.style.color = "#000";
         leaderboardDiv.style.fontSize = "12px";
-        leaderboardDiv.style.marginBottom = "20px";
+        leaderboardDiv.style.margin = "20px auto";  // Centrado de la tabla final
         leaderboardDiv.style.border = "1px solid #000";
         leaderboardDiv.style.borderRadius = "6px";
         leaderboardDiv.style.padding = "4px";
@@ -1175,8 +1184,7 @@
         document.getElementById('question').innerText = questionText;
         const imageDiv = document.getElementById('questionImage');
         imageDiv.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = baseURL + questionNoteImage;
+        const img = preloadedHTMLImages[questionNoteImage]; // Usamos la imagen precargada
         img.style.maxWidth = "200px";
         img.style.marginBottom = "20px";
         imageDiv.appendChild(img);
@@ -1321,6 +1329,7 @@
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
+        table.style.margin = '0 auto'; // Centrado de la tabla
         const headerRow = document.createElement('tr');
         ['Pos', 'Nombre', 'Puntos'].forEach(headerText=>{
           const th = document.createElement('th');
