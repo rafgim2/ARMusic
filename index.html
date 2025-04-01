@@ -49,7 +49,7 @@
         border-radius: 20px;
         max-width: 15%;
       }
-      /* Estilos para la tabla preview, igual que en multiplicaciones */
+      /* Estilos para la tabla preview, que se muestra SOLO en el overlay inicial */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -563,12 +563,13 @@
           selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
           playerName = document.getElementById('playerName').value || "Jugador";
           createAnswerObjects(selectedNumAnswers, true);
-          // En lugar de eliminar el overlay de inmediato, ocultamos los controles de entrada y dejamos visible la tabla preview
+          // Ocultamos los controles de entrada y, además, ocultamos la tabla preview para que NO se muestre en AR
           document.getElementById('playerName').style.display = 'none';
           document.getElementById('numAnswers').style.display = 'none';
           const containerRespuestas = document.querySelector('.respuestas-container');
           if(containerRespuestas) containerRespuestas.style.display = 'none';
-          // Opcional: ocultar todo el overlay después de 3 segundos
+          document.getElementById('leaderboardPreview').style.display = 'none';
+          // Opcional: ocultar el overlay completo después de 3 segundos
           setTimeout(() => { overlay.style.display = 'none'; }, 3000);
           generateQuestion();
           createScoreDisplay();
