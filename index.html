@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
       body { margin: 0; overflow: hidden; font-family: sans-serif; }
-      /* Estilos del overlay inicial (común) */
+      /* Overlay inicial (común para AR y HTML) */
       #overlay {
         position: absolute;
         top: 0;
@@ -49,7 +49,7 @@
         margin-bottom: 30px;
         margin-top: 50px;
       }
-      /* Tabla preview (usada en el overlay inicial) */
+      /* Tabla preview (en el overlay) */
       #leaderboardPreview {
         max-width: 80%;
         max-height: 120px;
@@ -217,7 +217,7 @@
         correctAnswer = selectedNote.note;
         questionText = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
-        // En modo AR se actualizan panel e imagen
+        // Si estamos en modo AR, actualizamos la interfaz AR
         if (scene && renderer.xr.isPresenting) {
           if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
           updateQuestionPanel();
@@ -228,7 +228,7 @@
         }
       }
 
-      /***** FUNCIONES DEL MODO AR (se mantienen sin cambios) *****/
+      /***** FUNCIONES DEL MODO AR (igual que en tu código inicial) *****/
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -353,6 +353,7 @@
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
+          // Se usa la posición central de la cámara
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.0);
           const minArc = 1.39626;
           const maxArc = Math.PI;
@@ -587,7 +588,7 @@
           }
         }
 
-        // Detección de colisiones en AR (raycasting con manos o cámara)
+        // Detección de colisiones en AR (XR: manos o cámara)
         const session = renderer.xr.getSession();
         let interactionPoints = [];
         if (session && xrFrame) {
@@ -619,7 +620,7 @@
             panel.getWorldPosition(panelPos);
             for (const pt of interactionPoints) {
               const dist = pt.distanceTo(panelPos);
-              if (dist <  collisionThreshold && !hasCollided) {
+              if (dist < 0.2 && !hasCollided) {
                 hasCollided = true;
                 if (panel.userData.answer === correctAnswer) {
                   const responseTime = performance.now() - currentQuestionStartTime;
@@ -840,12 +841,10 @@
 
       /***** MODO HTML: Funciones e interfaz *****/
       function initHTML() {
-        // Crear contenedor HTML
         const gameContainer = document.createElement('div');
         gameContainer.id = 'gameContainer';
         document.body.appendChild(gameContainer);
 
-        // Elementos de la interfaz HTML
         const questionDiv = document.createElement('div');
         questionDiv.id = 'question';
         questionDiv.style.fontSize = '32px';
@@ -911,11 +910,9 @@
       }
 
       function updateHTMLQuestion() {
-        const questionDiv = document.getElementById('question');
-        questionDiv.innerText = questionText;
+        document.getElementById('question').innerText = questionText;
         const imageEl = document.getElementById('questionImage');
         if (questionNoteImage && preloadedTextures[questionNoteImage]) {
-          // Usamos la URL de la imagen precargada
           imageEl.src = baseURL + questionNoteImage;
         } else {
           imageEl.src = "";
@@ -1083,7 +1080,6 @@
       }
 
       /***** INICIALIZACIÓN: Selección de modo AR o HTML *****/
-      // Se elimina la llamada incondicional a init() y animate() y se comprueba soporte en DOMContentLoaded
       window.addEventListener('DOMContentLoaded', async () => {
         // Comprobación de soporte AR
         let arSupported = false;
@@ -1095,11 +1091,11 @@
           }
         }
         if (arSupported) {
-          // Modo AR: se llama a init() (ya definida) y animate()
+          // Modo AR: se inicia llamando a init() y animate() (sin cambios respecto al código original)
           init();
           animate();
         } else {
-          // Modo HTML: se crea un overlay similar con selector y botón para iniciar el juego HTML
+          // Modo HTML: se muestra un overlay con selector y botón para iniciar el juego HTML
           const overlay = document.createElement('div');
           overlay.id = 'overlay';
           overlay.innerHTML =
@@ -1146,7 +1142,6 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
-renderer.xr.setReferenceSpaceType('local');
         document.body.appendChild(renderer.domElement);
 
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
@@ -1222,8 +1217,7 @@ renderer.xr.setReferenceSpaceType('local');
       function animate() {
         renderer.setAnimationLoop(render);
       }
-
-      /***** Función para actualizar el leaderboard preview (usada en el overlay) *****/
+      
       async function updateLeaderboardPreview(numAnswers) {
         const collectionName = `Musicleaderboard_${numAnswers}`;
         try {
