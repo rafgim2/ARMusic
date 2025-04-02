@@ -1107,58 +1107,62 @@
 
       /***** 3) RUTINAS PARA LA VERSIÓN HTML (dispositivos no compatibles con AR) *****/
       function initHTML() {
-        htmlMode = true; // Activamos modo HTML
-        const gameContainer = document.createElement('div');
-        gameContainer.id = 'gameContainer';
-        document.body.appendChild(gameContainer);
+  // Habilitar el scroll en la página para la versión HTML
+  document.body.style.overflow = 'auto';
 
-        const questionDiv = document.createElement('div');
-        questionDiv.id = 'question';
-        questionDiv.style.fontSize = '32px';
-        questionDiv.style.marginBottom = '20px';
-        gameContainer.appendChild(questionDiv);
+  htmlMode = true; // Activamos modo HTML
+  const gameContainer = document.createElement('div');
+  gameContainer.id = 'gameContainer';
+  document.body.appendChild(gameContainer);
 
-        const imageDiv = document.createElement('div');
-        imageDiv.id = 'questionImage';
-        gameContainer.appendChild(imageDiv);
+  const questionDiv = document.createElement('div');
+  questionDiv.id = 'question';
+  questionDiv.style.fontSize = '32px';
+  questionDiv.style.marginBottom = '20px';
+  gameContainer.appendChild(questionDiv);
 
-        const answersDiv = document.createElement('div');
-        answersDiv.id = 'answers';
-        answersDiv.style.display = 'flex';
-        answersDiv.style.flexWrap = 'wrap';
-        answersDiv.style.gap = '10px';
-        answersDiv.style.marginBottom = '20px';
-        answersDiv.style.justifyContent = 'center';  // Centrado de respuestas
-        gameContainer.appendChild(answersDiv);
+  const imageDiv = document.createElement('div');
+  imageDiv.id = 'questionImage';
+  gameContainer.appendChild(imageDiv);
 
-        const countdownDiv = document.createElement('div');
-        countdownDiv.id = 'countdown';
-        countdownDiv.style.fontSize = '24px';
-        countdownDiv.style.marginBottom = '20px';
-        gameContainer.appendChild(countdownDiv);
+  const answersDiv = document.createElement('div');
+  answersDiv.id = 'answers';
+  answersDiv.style.display = 'flex';
+  answersDiv.style.flexWrap = 'wrap';
+  answersDiv.style.gap = '10px';
+  answersDiv.style.marginBottom = '20px';
+  answersDiv.style.justifyContent = 'center';  // Centrado de respuestas
+  gameContainer.appendChild(answersDiv);
 
-        const scoreDiv = document.createElement('div');
-        scoreDiv.id = 'score';
-        scoreDiv.style.fontSize = '24px';
-        scoreDiv.style.marginBottom = '20px';
-        gameContainer.appendChild(scoreDiv);
+  const countdownDiv = document.createElement('div');
+  countdownDiv.id = 'countdown';
+  countdownDiv.style.fontSize = '24px';
+  countdownDiv.style.marginBottom = '20px';
+  gameContainer.appendChild(countdownDiv);
 
-        const leaderboardDiv = document.createElement('div');
-        leaderboardDiv.id = 'leaderboard';
-        leaderboardDiv.style.maxWidth = "150px";
-        leaderboardDiv.style.maxHeight = "120px";
-        leaderboardDiv.style.overflowY = "auto";
-        leaderboardDiv.style.backgroundColor = "#fff";
-        leaderboardDiv.style.color = "#000";
-        leaderboardDiv.style.fontSize = "12px";
-        leaderboardDiv.style.margin = "20px auto";  // Centrado de la tabla final
-        leaderboardDiv.style.border = "1px solid #000";
-        leaderboardDiv.style.borderRadius = "6px";
-        leaderboardDiv.style.padding = "4px";
-        gameContainer.appendChild(leaderboardDiv);
+  const scoreDiv = document.createElement('div');
+  scoreDiv.id = 'score';
+  scoreDiv.style.fontSize = '24px';
+  scoreDiv.style.marginBottom = '20px';
+  gameContainer.appendChild(scoreDiv);
 
-        startHTMLGame();
-      }
+  const leaderboardDiv = document.createElement('div');
+  leaderboardDiv.id = 'leaderboard';
+  leaderboardDiv.style.maxWidth = "150px";
+  leaderboardDiv.style.maxHeight = "120px";
+  leaderboardDiv.style.overflowY = "auto";
+  leaderboardDiv.style.backgroundColor = "#fff";
+  leaderboardDiv.style.color = "#000";
+  leaderboardDiv.style.fontSize = "12px";
+  leaderboardDiv.style.margin = "20px auto";  // Centrado de la tabla final
+  leaderboardDiv.style.border = "1px solid #000";
+  leaderboardDiv.style.borderRadius = "6px";
+  leaderboardDiv.style.padding = "4px";
+  gameContainer.appendChild(leaderboardDiv);
+
+  startHTMLGame();
+}
+
 
       function startHTMLGame() {
         correctCount = 0;
