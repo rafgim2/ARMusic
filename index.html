@@ -184,7 +184,7 @@
         preloadedTextures[note.image] = textureLoader.load(baseURL + note.image);
       });
 
-      // Precacheo de imágenes para la rama HTML
+      // Precacheo de imágenes para la versión HTML
       const preloadedHTMLImages = {};
       notes.forEach(note => {
         const img = new Image();
@@ -222,7 +222,9 @@
       let currentQuestionStartTime = 0;
       let correctResponseTimes = [];
 
-      // Variables para la tabla final en AR (se quitan scroll y flechas, solo 10 máx)
+      // Para la tabla final en AR:
+      // – Se quitan los botones de scroll
+      // – Máximo 10 resultados centrados en el jugador
       let leaderboardMesh = null;
       let leaderboardResults = [];
       let scoreboardStartIndex = 0;
@@ -375,7 +377,7 @@
       function createAnswerObjects(numAnswers, initialCreation) {
         if (initialCreation) {
           const radius = 0.8;
-          // Usamos la posición central de la cámara
+          // Usamos la posición de la cámara para ubicar las respuestas
           const centerPos = new THREE.Vector3().copy(initialCameraPos).addScaledVector(initialCameraDir, 0.0);
           const minArc = 1.39626;
           const maxArc = Math.PI;
@@ -502,7 +504,7 @@
         correctAnswer = selectedNote.note;
         questionText = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
-        // Solo actualizamos la escena AR si no estamos en modo HTML
+        // Actualizamos la escena AR solo si no estamos en modo HTML
         if (!htmlMode) {
           if (questionMesh) { 
             scene.remove(questionMesh); 
@@ -574,7 +576,7 @@
         arButton.style.color = 'white';
         overlay.appendChild(arButton);
 
-        // BOTÓN ADICIONAL: Iniciar versión HTML
+        // Botón para la versión HTML
         const htmlButton = document.createElement('button');
         htmlButton.innerText = "Iniciar versión HTML";
         htmlButton.style.fontSize = "16px";
@@ -588,7 +590,7 @@
           if (renderer.xr && renderer.xr.getSession()) {
             renderer.xr.getSession().end().catch(e => console.error(e));
           }
-          // Remover el canvas de AR para evitar que tape la interfaz HTML
+          // Remover el canvas de AR para que no tape la interfaz HTML
           if (renderer && renderer.domElement && renderer.domElement.parentNode) {
             renderer.domElement.parentNode.removeChild(renderer.domElement);
           }
@@ -717,8 +719,8 @@
           countdownStarted = true;
         }
 
+        // Actualizamos efectos de chispas
         const now = performance.now();
-        // Actualizamos efecto de chispas
         for (let i = sparksSystems.length - 1; i >= 0; i--) {
           const sys = sparksSystems[i];
           const dt = (now - sys.lastUpdate) / 1000;
@@ -777,7 +779,7 @@
           interactionPoints.push(cameraPos);
         }
 
-        // Chequeo de colisión con respuestas
+        // Colisión con paneles de respuesta
         if (!gameOver) {
           for (let panel of answers) {
             const panelPos = new THREE.Vector3();
@@ -842,7 +844,7 @@
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
 
-        // Guardamos o actualizamos la base de datos
+        // Guardar / actualizar en Firestore
         let docsFound = await getDocs(
           query(
             collection(db, collectionName),
@@ -864,7 +866,7 @@
           });
         }
 
-        // Obtenemos el leaderboard completo y luego lo recortamos a 10 filas
+        // Leemos todo el leaderboard, luego mostramos máx 10 resultados centrados
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -884,30 +886,31 @@
           idx++;
         });
 
-        // Buscamos posición del jugador
+        // Ubicamos al jugador
         let playerIndex = leaderboardResults.findIndex(
           (r) => r.name === playerName && r.score === finalScore
         );
         playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
 
-        // Centrar la tabla en la posición del jugador (máx 10 resultados)
+        // Centramos 10 resultados en torno a playerPosition
         scoreboardStartIndex = playerIndex - Math.floor(maxResultsToShow / 2);
         if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
         if (scoreboardStartIndex >= leaderboardResults.length) {
           scoreboardStartIndex = 0;
         }
-        // Ajustamos para no pasarnos de la longitud total
+        // Ajuste para no pasar el final
         if (scoreboardStartIndex + maxResultsToShow > leaderboardResults.length) {
           scoreboardStartIndex = Math.max(0, leaderboardResults.length - maxResultsToShow);
         }
 
-        // Recortamos a 10
+        // Recortamos a esos 10
         leaderboardResults = leaderboardResults.slice(scoreboardStartIndex, scoreboardStartIndex + maxResultsToShow);
 
         createLeaderboardMesh();
         drawLeaderboardSegment();
       }
 
+      // Creamos un botón "Reiniciar" y un "panel" para la tabla
       function createButton(text, width=0.3, height=0.15) {
         const canvas = document.createElement('canvas');
         canvas.width  = 256 * resolutionFactor;
@@ -930,7 +933,6 @@
         return mesh;
       }
 
-      // Función para crear la malla del leaderboard final en AR
       function createLeaderboardMesh() {
         if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
@@ -949,13 +951,12 @@
         leaderboardMesh = new THREE.Mesh(lbGeometry, lbMaterial);
         leaderboardMesh.userData = { canvas: dummyCanvas, ctx, texture: lbTexture, planeWidth, planeHeight };
         
-        // Centro la tabla
+        // Tabla centrada al frente
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
 
-        // Botón Reiniciar a la IZQUIERDA de la tabla, misma altura en Y
+        // Botón reiniciar a la izquierda, misma altura
         restartButtonMesh = createButton("Reiniciar", 0.3, 0.15);
-        // Separado un poco a la izquierda del mesh
         restartButtonMesh.position.set(-0.8, 0, -1.2);
         scene.add(restartButtonMesh);
       }
@@ -965,7 +966,7 @@
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
         const subset = leaderboardResults;
         const lineHeight = 40 * resolutionFactor;
-        const extraLines = 4;
+        const extraLines = 4; 
         const canvasWidth = 512 * resolutionFactor;
         const canvasHeight = lineHeight * (subset.length + extraLines);
         canvas.width = canvasWidth;
@@ -981,8 +982,8 @@
         ctx.fillText("Tabla de Clasificación", canvasWidth / 2, lineHeight);
 
         // Cabeceras
-        const xPosPos = 0.10 * canvasWidth;
-        const xPosName = 0.40 * canvasWidth;
+        const xPosPos   = 0.10 * canvasWidth;
+        const xPosName  = 0.40 * canvasWidth;
         const xPosScore = 0.75 * canvasWidth;
         let startY = lineHeight * 2.5;
         ctx.font = 'Bold ' + (24 * resolutionFactor) + 'px Arial';
@@ -991,11 +992,11 @@
         ctx.fillText("Nombre", xPosName, startY);
         ctx.fillText("Puntos", xPosScore, startY);
 
-        // Cuerpo de la tabla
+        // Contenido
         let yPos = startY + (1.5 * lineHeight);
         for (let i = 0; i < subset.length; i++) {
           const data = subset[i];
-          const realPos = data._index + 1; // la posición real en el ranking global
+          const realPos = data._index + 1;  // la posición real en el ranking
           if (playerPosition !== null && realPos === playerPosition) {
             ctx.fillStyle = "green";
             ctx.fillRect(0, yPos - lineHeight * 0.6, canvasWidth, lineHeight);
@@ -1009,7 +1010,7 @@
           yPos += lineHeight;
         }
 
-        // Posición del jugador (opcional)
+        // Posición del jugador
         if (playerPosition !== null) {
           ctx.textAlign = "center";
           ctx.fillText(`Tu posición: ${playerPosition}`, canvasWidth / 2, yPos + lineHeight);
@@ -1020,8 +1021,6 @@
         leaderboardMesh.geometry.dispose();
         leaderboardMesh.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
         leaderboardMesh.position.set(0, 0, -1.2);
-
-        // Ajustar la posición del botón reiniciar si la tabla cambió de altura
         restartButtonMesh.position.set(-0.8, 0, -1.2);
       }
 
@@ -1037,7 +1036,7 @@
         });
       }, { once: true });
 
-      // Evento táctil para raycasting en AR (detectar colisiones con paneles o botón reiniciar)
+      // Evento táctil para raycasting en AR
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -1052,14 +1051,13 @@
           objectsToIntersect = answers;
         } else {
           if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
-          // Se quitaron los botones de scroll
+          // Se eliminaron botones de scroll; ya no se añaden
         }
         const intersects = raycaster.intersectObjects(objectsToIntersect);
         if (intersects.length > 0 && !hasCollided) {
           const objHit = intersects[0].object;
           hasCollided = true;
           if (!gameOver) {
-            // Chequeo respuesta
             if (objHit.userData.answer === correctAnswer) {
               const responseTime = performance.now() - currentQuestionStartTime;
               correctResponseTimes.push(responseTime);
@@ -1092,7 +1090,6 @@
               }, 500);
             }
           } else {
-            // Sólo podría tocar el botón de reiniciar
             if (objHit === restartButtonMesh) {
               const successSound = document.getElementById('successSound');
               const successClone = successSound.cloneNode();
@@ -1135,9 +1132,9 @@
         timerSound.play().catch(e => console.error(e));
       }
 
-      /***** 3) RUTINAS PARA LA VERSIÓN HTML (dispositivos no compatibles con AR) *****/
+      /***** 3) RUTINAS PARA LA VERSIÓN HTML (NO SE TOCAN) *****/
       function initHTML() {
-        // Habilitar scroll en el body para la versión HTML
+        // Habilitar scroll en el body
         document.body.style.overflow = 'auto';
         htmlMode = true;
         const gameContainer = document.createElement('div');
@@ -1175,13 +1172,18 @@
         scoreDiv.style.marginBottom = '20px';
         gameContainer.appendChild(scoreDiv);
 
-        // Versión HTML: la tabla final sin scroll y máx 10 resultados
         const leaderboardDiv = document.createElement('div');
         leaderboardDiv.id = 'leaderboard';
-        // Quitamos scroll y fijamos un ancho/alto auto, se mostrarán solo 10 filas
-        leaderboardDiv.style.maxWidth = "500px";
-        leaderboardDiv.style.overflowY = "hidden"; 
+        leaderboardDiv.style.maxWidth = "180px";
+        leaderboardDiv.style.maxHeight = "120px";
+        leaderboardDiv.style.overflowY = "auto";
+        leaderboardDiv.style.backgroundColor = "#fff";
+        leaderboardDiv.style.color = "#000";
+        leaderboardDiv.style.fontSize = "12px";
         leaderboardDiv.style.margin = "20px auto";
+        leaderboardDiv.style.border = "1px solid #000";
+        leaderboardDiv.style.borderRadius = "6px";
+        leaderboardDiv.style.padding = "4px";
         gameContainer.appendChild(leaderboardDiv);
 
         startHTMLGame();
@@ -1296,7 +1298,7 @@
         const finalScore = parseFloat(rawScore.toFixed(3));
         const collectionName = `Musicleaderboard_${selectedNumAnswers}`;
 
-        // Guardamos o actualizamos el puntaje
+        // Guardar / actualizar en Firestore
         let docsFound = await getDocs(
           query(
             collection(db, collectionName),
@@ -1318,7 +1320,7 @@
           });
         }
 
-        // Leemos el leaderboard completo
+        // Obtenemos clasificación completa
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -1337,62 +1339,37 @@
           leaderboardResultsHTML.push({ ...data, _index: idx });
           idx++;
         });
-
-        // Posición del jugador
+        
+        // Buscamos la posición
         let playerIndex = leaderboardResultsHTML.findIndex(r=> r.name===playerName && r.score===finalScore);
         let playerPosition = (playerIndex>=0)? (playerIndex+1) : null;
 
-        // Centramos y limitamos a 10 resultados
-        let scoreboardStartIndex = playerIndex - Math.floor(maxResultsToShow / 2);
-        if (scoreboardStartIndex < 0) scoreboardStartIndex = 0;
-        if (scoreboardStartIndex >= leaderboardResultsHTML.length) {
-          scoreboardStartIndex = 0;
-        }
-        if (scoreboardStartIndex + maxResultsToShow > leaderboardResultsHTML.length) {
-          scoreboardStartIndex = Math.max(0, leaderboardResultsHTML.length - maxResultsToShow);
-        }
-        const finalSubset = leaderboardResultsHTML.slice(scoreboardStartIndex, scoreboardStartIndex + maxResultsToShow);
+        displayHTMLLeaderboard(leaderboardResultsHTML, playerPosition, finalScore);
 
-        displayHTMLLeaderboard(finalSubset, playerPosition);
-
-        // Colocamos el botón Reiniciar a la izquierda de la tabla
         const gameContainer = document.getElementById('gameContainer');
-        const leaderboardDiv = document.getElementById('leaderboard');
         const restartBtn = document.createElement('button');
         restartBtn.innerText = "Reiniciar";
         restartBtn.style.fontSize = '24px';
         restartBtn.style.padding = '10px 20px';
-
-        // Contenedor para alinear botón e info a la misma altura
-        const finalContainer = document.createElement('div');
-        finalContainer.style.display = 'flex';
-        finalContainer.style.alignItems = 'center';
-        finalContainer.style.justifyContent = 'center';
-        finalContainer.style.gap = '20px';
-        finalContainer.appendChild(restartBtn);
-        finalContainer.appendChild(leaderboardDiv);
-
-        // Limpiamos el leaderboardDiv antes de re-insertarlo
-        gameContainer.removeChild(leaderboardDiv);
-        gameContainer.appendChild(finalContainer);
-
         restartBtn.onclick = ()=>{
-          finalContainer.remove();
+          restartBtn.remove();
+          document.getElementById('leaderboard').innerHTML = '';
           document.getElementById('question').innerText = '';
           document.getElementById('answers').innerHTML = '';
-          document.getElementById('leaderboard').innerHTML = '';
           startHTMLGame();
         };
+        gameContainer.appendChild(restartBtn);
       }
 
-      function displayHTMLLeaderboard(leaderboardResults, playerPosition) {
+      function displayHTMLLeaderboard(leaderboardResults, playerPosition, finalScore) {
         const leaderboardDiv = document.getElementById('leaderboard');
         leaderboardDiv.innerHTML = '';
         const table = document.createElement('table');
+        table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
         table.style.margin = '0 auto';
 
-        // Cabecera
+        // Cabeceras
         const headerRow = document.createElement('tr');
         ['Pos', 'Nombre', 'Puntos'].forEach(headerText=>{
           const th = document.createElement('th');
@@ -1407,26 +1384,24 @@
         // Filas
         leaderboardResults.forEach((data,index)=>{
           const row = document.createElement('tr');
-          const realPos = data._index + 1;
-          if (playerPosition !== null && realPos === playerPosition) {
+          if (playerPosition !== null && (index+1)===playerPosition) {
             row.style.backgroundColor = 'green';
             row.style.color = '#fff';
           }
-          // Pos
           const posCell = document.createElement('td');
-          posCell.innerText = realPos;
+          posCell.innerText = index+1;
           posCell.style.border = '1px solid #666';
           posCell.style.padding = '4px';
           posCell.style.textAlign = 'center';
           row.appendChild(posCell);
-          // Nombre
+
           const nameCell = document.createElement('td');
           nameCell.innerText = data.name;
           nameCell.style.border = '1px solid #666';
           nameCell.style.padding = '4px';
           nameCell.style.textAlign = 'center';
           row.appendChild(nameCell);
-          // Score
+
           const scoreCell = document.createElement('td');
           scoreCell.innerText = data.score;
           scoreCell.style.border = '1px solid #666';
@@ -1450,11 +1425,11 @@
           }
         }
         if (arSupported) {
-          // Si AR es soportado, se inicia el modo AR
+          // Modo AR
           init();
           animate();
         } else {
-          // Si no es soportado, se muestra un overlay con opción para iniciar el juego en HTML
+          // Modo HTML
           const overlay = document.createElement('div');
           overlay.id = 'overlay';
           overlay.innerHTML =
