@@ -210,7 +210,7 @@
       let gameOver = false;
       let countdownMesh = null, scoreMesh = null;
       let restartButtonMesh = null;
-      // se QUITAN scrollUpButtonMesh y scrollDownButtonMesh
+      // Se quitan scrollUpButtonMesh y scrollDownButtonMesh
       let originalAnswerTransforms = null;
       let beepPlayed = false;
       let gameReady = false;
@@ -226,7 +226,6 @@
       // Variables para la tabla final en AR
       let leaderboardMesh = null;
       let leaderboardResults = [];
-      // Se elimina scoreboardStartIndex y la lógica de scroll
       let playerPosition = null;
 
       /***** 2.3 Funciones auxiliares: dibujo de rectángulo redondeado *****/
@@ -245,7 +244,7 @@
         ctx.fill();
       }
 
-      // 2.4 Actualizar el panel de pregunta (texto) para AR
+      /***** Actualizar el panel de pregunta (texto) para AR *****/
       function updateQuestionPanel() {
         const text = questionText;
         const fontSize = 48 * resolutionFactor;
@@ -286,13 +285,12 @@
           const geometry = new THREE.PlaneGeometry(newWidth, newHeight);
           const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
           questionMesh = new THREE.Mesh(geometry, material);
-          // Posición original de la pregunta
           questionMesh.position.set(0, 0.5, -0.78);
           scene.add(questionMesh);
         }
       }
 
-      // 2.5 Actualizar la imagen de la nota para AR
+      /***** Actualizar la imagen de la nota para AR *****/
       function updateQuestionImage() {
         if (questionImageMesh) {
           scene.remove(questionImageMesh);
@@ -329,12 +327,11 @@
         const geometry = new THREE.PlaneGeometry(0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({ map: roundedTexture, transparent: true });
         questionImageMesh = new THREE.Mesh(geometry, material);
-        // Posición original de la imagen
         questionImageMesh.position.set(0, 0.25, -0.82);
         scene.add(questionImageMesh);
       }
 
-      // 2.6 Actualizar el panel de respuesta para AR
+      /***** Actualizar el panel de respuesta para AR *****/
       function updateAnswerPanel(mesh, value) {
         const fontSize = 75 * resolutionFactor;
         const padding  = 40 * resolutionFactor;
@@ -371,7 +368,7 @@
         mesh.userData.answer = value;
       }
 
-      // 2.7 Crear (o actualizar) los paneles de respuesta para AR
+      /***** Crear (o actualizar) los paneles de respuesta para AR *****/
       let initialCameraPos = new THREE.Vector3();
       let initialCameraDir = new THREE.Vector3();
 
@@ -443,7 +440,8 @@
         createAnswerObjects(selectedNumAnswers, false);
       }
 
-      // 2.8 Efecto chispas
+      /***** Efecto chispas *****/
+      let sparkTextureCache = null;
       function createSparksEffect(position) {
         const count = 100;
         const positions = new Float32Array(count * 3);
@@ -460,16 +458,28 @@
         }
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        if (!sparkTextureCache) {
+          const cSize = 128;
+          const c = document.createElement('canvas');
+          c.width = cSize; c.height = cSize;
+          const ctx = c.getContext('2d');
+          const grd = ctx.createRadialGradient(cSize/2, cSize/2, 0, cSize/2, cSize/2, cSize/2);
+          grd.addColorStop(0, 'rgba(255,255,255,1)');
+          grd.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = grd;
+          ctx.fillRect(0, 0, cSize, cSize);
+          sparkTextureCache = new THREE.CanvasTexture(c);
+          sparkTextureCache.minFilter = THREE.LinearFilter;
+        }
         const material = new THREE.PointsMaterial({
           color: 0xffffff,
           size: 0.02,
-          map: createCircleTexture(),
+          map: sparkTextureCache,
           transparent: true,
           opacity: 1.0,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
           alphaTest: 0.5,
-          sizeAttenuation: true
         });
         const points = new THREE.Points(geometry, material);
         scene.add(points);
@@ -481,22 +491,7 @@
         });
       }
 
-      function createCircleTexture() {
-        const size = 128;
-        const canvas = document.createElement('canvas');
-        canvas.width  = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, size, size);
-        const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, size, size);
-        return new THREE.CanvasTexture(canvas);
-      }
-
-      // 2.9 Generar pregunta (nota aleatoria) y reiniciar cronómetro de respuesta
+      /***** Generar pregunta (nota aleatoria) *****/
       function generateQuestion() {
         const randomIndex = Math.floor(Math.random() * notes.length);
         const selectedNote = notes[randomIndex];
@@ -504,10 +499,7 @@
         questionText = "¿Qué nota es esta?";
         questionNoteImage = selectedNote.image;
         if (!htmlMode) {
-          if (questionMesh) { 
-            scene.remove(questionMesh); 
-            questionMesh = null; 
-          }
+          if (questionMesh) scene.remove(questionMesh);
           updateQuestionPanel();
           updateQuestionImage();
           updateAnswerObjects();
@@ -516,111 +508,8 @@
         currentQuestionStartTime = performance.now();
       }
 
-      // 2.10 Inicializar escena, cámara, renderer y overlay en AR
-      function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        light.position.set(0.5, 1, 0.25);
-        scene.add(light);
-
-        window.addEventListener('resize', onWindowResize, false);
-
-        // Overlay inicial con imagen, link, selector de respuestas, tabla preview e input de nombre
-        const overlay = document.createElement('div');
-        overlay.id = 'overlay';
-        overlay.innerHTML =
-          '<img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:0px;">' +
-          '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
-          '<div class="respuestas-container">' +
-            '<label for="numAnswers">Respuestas:</label>' +
-            '<select id="numAnswers">' +
-              '<option value="4">4</option>' +
-              '<option value="5">5</option>' +
-              '<option value="6">6</option>' +
-              '<option value="7">7</option>' +
-              '<option value="8">8</option>' +
-              '<option value="9">9</option>' +
-              '<option value="10">10</option>' +
-            '</select>' +
-          '</div>' +
-          '<div id="leaderboardPreview"></div>' +
-          '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">';
-
-        // Botón AR (se mantiene igual)
-        const arButton = ARButton.createButton(renderer, {
-          requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
-            ? ['hit-test']
-            : ['hit-test', 'hand-tracking']
-        });
-        if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
-        arButton.style.position = 'absolute';
-        arButton.style.top = '650px';
-        arButton.style.left = '100%';
-        arButton.style.transform = 'translateX(0%)';
-        arButton.style.width = '150px';
-        arButton.style.height = '50px';
-        arButton.style.fontSize = '16px';
-        arButton.style.backgroundColor = 'green';
-        arButton.style.color = 'white';
-        overlay.appendChild(arButton);
-
-        // BOTÓN ADICIONAL: Iniciar versión HTML debajo del botón AR
-        const htmlButton = document.createElement('button');
-        htmlButton.innerText = "Iniciar versión HTML";
-        htmlButton.style.fontSize = "16px";
-        htmlButton.style.padding = "10px 20px";
-        htmlButton.style.marginTop = "10px";
-        htmlButton.onclick = () => {
-          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
-          playerName = document.getElementById('playerName').value || "Jugador";
-          overlay.remove();
-          if (renderer.xr && renderer.xr.getSession()) {
-            renderer.xr.getSession().end().catch(e => console.error(e));
-          }
-          if (renderer && renderer.domElement && renderer.domElement.parentNode) {
-            renderer.domElement.parentNode.removeChild(renderer.domElement);
-          }
-          initHTML();
-        };
-        overlay.appendChild(htmlButton);
-
-        document.body.appendChild(overlay);
-
-        const selectAnswers = document.getElementById('numAnswers');
-        selectAnswers.addEventListener('change', () => {
-          const num = parseInt(selectAnswers.value) || 4;
-          updateLeaderboardPreview(num);
-        });
-        updateLeaderboardPreview(4);
-
-        renderer.xr.addEventListener('sessionstart', () => {
-          camera.getWorldPosition(initialCameraPos);
-          camera.getWorldDirection(initialCameraDir);
-          initialCameraDir.normalize();
-          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
-          playerName = document.getElementById('playerName').value || "Jugador";
-          createAnswerObjects(selectedNumAnswers, true);
-          overlay.remove();
-          generateQuestion();
-          createScoreDisplay();
-          gameReady = true;
-        });
-      }
-
-      function onWindowResize() {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-
-      // 2.11 Crear display de countdown y score en AR
+      /***** Contador y score en AR *****/
+      let countdownStarted = false;
       function startCountdown() {
         gameStartTime = performance.now();
         const canvas = document.createElement('canvas');
@@ -688,7 +577,112 @@
         texture.needsUpdate = true;
       }
 
-      // 2.12 Bucle principal y renderizado (detección de colisiones en AR)
+      /***** Inicialización de la escena AR *****/
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        light.position.set(0.5, 1, 0.25);
+        scene.add(light);
+
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Overlay inicial
+        const overlay = document.createElement('div');
+        overlay.id = 'overlay';
+        overlay.innerHTML = `
+          <img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:0px;">
+          <a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>
+          <div class="respuestas-container">
+            <label for="numAnswers">Respuestas:</label>
+            <select id="numAnswers">
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+          <div id="leaderboardPreview"></div>
+          <input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">
+        `;
+
+        // Botón AR
+        const arButton = ARButton.createButton(renderer, {
+          requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
+            ? ['hit-test']
+            : ['hit-test', 'hand-tracking']
+        });
+        if (arButton.parentNode) {
+          arButton.parentNode.removeChild(arButton);
+        }
+        arButton.style.position = 'absolute';
+        arButton.style.top = '650px';
+        arButton.style.left = '100%';
+        arButton.style.transform = 'translateX(0%)';
+        arButton.style.width = '150px';
+        arButton.style.height = '50px';
+        arButton.style.fontSize = '16px';
+        arButton.style.backgroundColor = 'green';
+        arButton.style.color = 'white';
+        overlay.appendChild(arButton);
+
+        // Botón HTML
+        const htmlButton = document.createElement('button');
+        htmlButton.innerText = "Iniciar versión HTML";
+        htmlButton.style.fontSize = "16px";
+        htmlButton.style.padding = "10px 20px";
+        htmlButton.style.marginTop = "10px";
+        htmlButton.onclick = () => {
+          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
+          playerName = document.getElementById('playerName').value || "Jugador";
+          overlay.remove();
+          if (renderer.xr && renderer.xr.getSession()) {
+            renderer.xr.getSession().end().catch(e => console.error(e));
+          }
+          if (renderer && renderer.domElement && renderer.domElement.parentNode) {
+            renderer.domElement.parentNode.removeChild(renderer.domElement);
+          }
+          initHTML();
+        };
+        overlay.appendChild(htmlButton);
+
+        document.body.appendChild(overlay);
+
+        const selectAnswers = document.getElementById('numAnswers');
+        selectAnswers.addEventListener('change', () => {
+          const num = parseInt(selectAnswers.value) || 4;
+          updateLeaderboardPreview(num);
+        });
+        updateLeaderboardPreview(4);
+
+        renderer.xr.addEventListener('sessionstart', () => {
+          camera.getWorldPosition(initialCameraPos);
+          camera.getWorldDirection(initialCameraDir);
+          initialCameraDir.normalize();
+          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
+          playerName = document.getElementById('playerName').value || "Jugador";
+          createAnswerObjects(selectedNumAnswers, true);
+          overlay.remove();
+          generateQuestion();
+          createScoreDisplay();
+          gameReady = true;
+        });
+      }
+
+      /***** Bucle principal AR *****/
       function animate() {
         renderer.setAnimationLoop(render);
       }
@@ -710,6 +704,7 @@
           countdownStarted = true;
         }
 
+        // Efecto chispas
         const now = performance.now();
         for (let i = sparksSystems.length - 1; i >= 0; i--) {
           const sys = sparksSystems[i];
@@ -814,7 +809,7 @@
         }
       }
 
-      // 2.13 Función para crear y mostrar el leaderboard final en AR
+      /***** endGame: crear y mostrar leaderboard final en AR *****/
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -870,18 +865,18 @@
           leaderboardResults.push({ ...data, _index: idx });
           idx++;
         });
-        // Determinamos la posición del jugador
+        // Posición del jugador
         let playerIndex = leaderboardResults.findIndex((r) => r.name === playerName && r.score === finalScore);
         playerPosition = (playerIndex >= 0) ? (playerIndex + 1) : null;
         createLeaderboardMesh();
         drawLeaderboardSegment();
       }
 
-      // Función para crear la malla del leaderboard final en AR
+      /***** Crear la malla del leaderboard *****/
       function createLeaderboardMesh() {
         if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
-        // Eliminamos los botones de scroll
+
         const dummyCanvas = document.createElement('canvas');
         dummyCanvas.width = 512;
         dummyCanvas.height = 512;
@@ -898,13 +893,13 @@
         leaderboardMesh.position.set(0, 0, -1.2);
         scene.add(leaderboardMesh);
 
+        // Botón de reiniciar a la izquierda de la tabla
         restartButtonMesh = createButton("Reiniciar");
-        // Posicionar el botón de reiniciar a la izquierda, y=0
         restartButtonMesh.position.set(-planeWidth / 2 - 0.1, 0, -1.1);
         scene.add(restartButtonMesh);
       }
 
-      // Dibujar la tabla de clasificación con un máximo de 10 resultados centrados en la posición del jugador
+      /***** Dibujar la tabla con 10 resultados centrados en la posición del jugador *****/
       function drawLeaderboardSegment() {
         if (!leaderboardMesh) return;
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
@@ -913,17 +908,15 @@
         const total = leaderboardResults.length;
         const displayCount = Math.min(10, total);
 
-        // Calculamos el índice del jugador
-        let playerIndex = (playerPosition !== null) ? (playerPosition - 1) : Math.floor(displayCount / 2);
-        // Calculamos startIndex para centrar (en lo posible)
-        let startIndex = Math.max(0, playerIndex - Math.floor(displayCount / 2));
+        // Centrar en la posición del jugador
+        let pIndex = playerPosition ? (playerPosition - 1) : 0;
+        let startIndex = Math.max(0, pIndex - Math.floor(displayCount / 2));
         if (startIndex + displayCount > total) {
           startIndex = total - displayCount;
           if (startIndex < 0) startIndex = 0;
         }
         const displayResults = leaderboardResults.slice(startIndex, startIndex + displayCount);
 
-        // Creamos el canvas
         const canvasWidth = 512 * resolutionFactor;
         const canvasHeight = headerHeight + rowHeight * displayResults.length;
         canvas.width = canvasWidth;
@@ -966,7 +959,7 @@
           ctx.fillText(String(data.score), xPosScore, yPos);
           yPos += rowHeight;
         }
-        // Mensaje de posición del jugador
+        // Mensaje de posición
         if (playerPosition !== null) {
           ctx.textAlign = "center";
           ctx.fillText(`Tu posición: ${playerPosition}`, canvasWidth / 2, yPos + rowHeight);
@@ -978,7 +971,54 @@
         leaderboardMesh.position.set(0, 0, -1.2);
       }
 
-      // 2.14 Evento táctil para desbloquear audio (iOS/Android)
+      /***** Botón AR de tipo “canvas button” *****/
+      function createButton(text, planeWidth = 0.3, planeHeight = 0.1) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256 * resolutionFactor;
+        canvas.height = 64 * resolutionFactor;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#007BFF";
+        drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 10 * resolutionFactor);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = 'Bold ' + (18 * resolutionFactor) + 'px Arial';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        return new THREE.Mesh(geometry, material);
+      }
+
+      /***** Reiniciar juego en AR *****/
+      function restartGame() {
+        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
+        if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
+        if (countdownMesh) { scene.remove(countdownMesh); countdownMesh = null; }
+        if (scoreMesh) { scene.remove(scoreMesh); scoreMesh = null; }
+        if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
+        if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
+        answers.forEach(a => scene.remove(a));
+        answers = [];
+        correctCount = 0;
+        wrongCount = 0;
+        gameStartTime = performance.now();
+        gameOver = false;
+        correctResponseTimes = [];
+        createAnswerObjects(selectedNumAnswers, true);
+        generateQuestion();
+        countdownStarted = false;
+        gameReady = true;
+        createScoreDisplay();
+        const timerSound = document.getElementById('timerSound');
+        timerSound.currentTime = 0;
+        timerSound.loop = false;
+        timerSound.play().catch(e => console.error(e));
+      }
+
+      /***** Evento táctil para iOS/Android que desbloquea audio *****/
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
         const errorEl = document.getElementById('errorSound');
@@ -986,11 +1026,11 @@
           audioEl.play().then(() => {
             audioEl.pause();
             audioEl.currentTime = 0;
-          }).catch(e => console.error(e));
+          }).catch(e => {});
         });
       }, { once: true });
 
-      // 2.15 Evento táctil para raycasting en AR (detectar colisiones)
+      /***** Evento táctil para raycasting en AR (toques en pantalla) *****/
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -999,11 +1039,12 @@
         const mouseVector = new THREE.Vector2(x, y);
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouseVector, camera);
+
         let objectsToIntersect = [];
         if (!gameOver) {
           objectsToIntersect = answers;
         } else {
-          // Sólo el botón de reiniciar
+          // Solo el botón reiniciar
           if (restartButtonMesh) objectsToIntersect.push(restartButtonMesh);
         }
         const intersects = raycaster.intersectObjects(objectsToIntersect);
@@ -1058,36 +1099,8 @@
         }
       }, false);
 
-      // 2.16 Reiniciar juego en AR
-      function restartGame() {
-        if (questionMesh) { scene.remove(questionMesh); questionMesh = null; }
-        if (questionImageMesh) { scene.remove(questionImageMesh); questionImageMesh = null; }
-        if (countdownMesh) { scene.remove(countdownMesh); countdownMesh = null; }
-        if (scoreMesh) { scene.remove(scoreMesh); scoreMesh = null; }
-        if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
-        if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
-        // scrollUpButtonMesh y scrollDownButtonMesh ya no existen
-        answers.forEach(a => scene.remove(a));
-        answers = [];
-        correctCount = 0;
-        wrongCount = 0;
-        gameStartTime = performance.now();
-        gameOver = false;
-        correctResponseTimes = [];
-        createAnswerObjects(selectedNumAnswers, true);
-        generateQuestion();
-        countdownStarted = false;
-        gameReady = true;
-        createScoreDisplay();
-        const timerSound = document.getElementById('timerSound');
-        timerSound.currentTime = 0;
-        timerSound.loop = false;
-        timerSound.play().catch(e => console.error(e));
-      }
-
       /***** 3) RUTINAS PARA LA VERSIÓN HTML (dispositivos no compatibles con AR) *****/
       function initHTML() {
-        // Habilitar scroll para la versión HTML
         document.body.style.overflow = 'auto';
         htmlMode = true;
         const gameContainer = document.createElement('div');
