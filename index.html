@@ -537,7 +537,7 @@
 
         window.addEventListener('resize', onWindowResize, false);
 
-        // Overlay inicial con imagen, link, selector de respuestas, tabla preview y input de nombre
+        // Overlay inicial con imagen, link, selector de respuestas, tabla preview e input de nombre
         const overlay = document.createElement('div');
         overlay.id = 'overlay';
         overlay.innerHTML =
@@ -558,6 +558,7 @@
           '<div id="leaderboardPreview"></div>' +
           '<input type="text" id="playerName" placeholder="Ingresa tu nombre" style="padding:10px; font-size:16px; margin-bottom:20px;" maxlength="10">';
 
+        // Botón AR (se mantiene igual)
         const arButton = ARButton.createButton(renderer, {
           requiredFeatures: /Mobi|Android/i.test(navigator.userAgent)
             ? ['hit-test']
@@ -565,7 +566,7 @@
         });
         if (arButton.parentNode) { arButton.parentNode.removeChild(arButton); }
         arButton.style.position = 'absolute';
-        arButton.style.top = '600px';
+        arButton.style.top = '650px';
         arButton.style.left = '100%';
         arButton.style.transform = 'translateX(0%)';
         arButton.style.width = '150px';
@@ -574,6 +575,29 @@
         arButton.style.backgroundColor = 'green';
         arButton.style.color = 'white';
         overlay.appendChild(arButton);
+
+        // BOTÓN ADICIONAL: Iniciar versión HTML debajo del botón AR
+        const htmlButton = document.createElement('button');
+        htmlButton.innerText = "Iniciar versión HTML";
+        htmlButton.style.fontSize = "16px";
+        htmlButton.style.padding = "10px 20px";
+        htmlButton.style.marginTop = "10px";
+        htmlButton.onclick = () => {
+          selectedNumAnswers = parseInt(document.getElementById('numAnswers').value) || 4;
+          playerName = document.getElementById('playerName').value || "Jugador";
+          overlay.remove();
+          // Finalizar sesión XR si existe
+          if (renderer.xr && renderer.xr.getSession()) {
+            renderer.xr.getSession().end().catch(e => console.error(e));
+          }
+          // Remover el canvas de AR para evitar que tape la interfaz HTML
+          if (renderer && renderer.domElement && renderer.domElement.parentNode) {
+            renderer.domElement.parentNode.removeChild(renderer.domElement);
+          }
+          initHTML();
+        };
+        overlay.appendChild(htmlButton);
+
         document.body.appendChild(overlay);
 
         const selectAnswers = document.getElementById('numAnswers');
@@ -767,7 +791,7 @@
                   correctCount++;
                   const successSound = document.getElementById('successSound');
                   const clone = successSound.cloneNode();
-                  clone.play().catch(e => {});
+                  clone.play().catch(e => console.error(e));
                   createSparksEffect(panel.position);
                   if (questionMesh) questionMesh.visible = false;
                   if (questionImageMesh) questionImageMesh.visible = false;
@@ -785,7 +809,7 @@
                   wrongCount++;
                   const errorSound = document.getElementById('errorSound');
                   const errorClone = errorSound.cloneNode();
-                  errorClone.play().catch(e => {});
+                  errorClone.play().catch(e => console.error(e));
                   answers.forEach(a => a.material.color.set(0xff0000));
                   setTimeout(() => {
                     answers.forEach(a => a.material.color.set(0xffffff));
@@ -799,7 +823,7 @@
         }
       }
 
-      // 2.13 Función para crear y mostrar la tabla final (leaderboard) en AR
+      // 2.13 Función para crear y mostrar el leaderboard final en AR
       async function endGame() {
         gameOver = true;
         if (questionMesh) scene.remove(questionMesh);
@@ -837,7 +861,6 @@
             timestamp: serverTimestamp()
           });
         }
-        // Consultar y preparar el leaderboard completo para mostrar en AR
         let qLeaderboard = query(
           collection(db, collectionName),
           orderBy("score", "desc")
@@ -869,7 +892,7 @@
         drawLeaderboardSegment();
       }
 
-      // Función para crear la malla del leaderboard final en AR (con botones de reinicio y scroll)
+      // Función para crear la malla del leaderboard final en AR
       function createLeaderboardMesh() {
         if (leaderboardMesh) { scene.remove(leaderboardMesh); leaderboardMesh = null; }
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
@@ -905,7 +928,6 @@
         scene.add(scrollDownButtonMesh);
       }
 
-      // Función para dibujar el segmento del leaderboard en AR
       function drawLeaderboardSegment() {
         if (!leaderboardMesh) return;
         const { canvas, ctx, texture, planeWidth } = leaderboardMesh.userData;
@@ -962,27 +984,6 @@
         scrollDownButtonMesh.position.set(-planeWidth * 0.5 - 0.1, -planeHeight * 0.35, -1.1);
       }
 
-      // Función para crear un botón en AR
-      function createButton(text, planeWidth = 0.3, planeHeight = 0.1) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256 * resolutionFactor;
-        canvas.height = 64 * resolutionFactor;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = "#007BFF";
-        drawRoundedRect(ctx, 0, 0, canvas.width, canvas.height, 10 * resolutionFactor);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = 'Bold ' + (18 * resolutionFactor) + 'px Arial';
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, canvas.width/2, canvas.height/2);
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        const geom = new THREE.PlaneGeometry(planeWidth, planeHeight);
-        const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        return new THREE.Mesh(geom, mat);
-      }
-
       // 2.14 Evento táctil para desbloquear audio (iOS/Android)
       window.addEventListener('touchstart', function unlockAudio() {
         const successEl = document.getElementById('successSound');
@@ -995,7 +996,7 @@
         });
       }, { once: true });
 
-      // 2.15 Evento táctil para raycasting en AR
+      // 2.15 Evento táctil para raycasting en AR (detectar colisiones)
       window.addEventListener('touchstart', function(event) {
         if (!/Mobi|Android/i.test(navigator.userAgent)) return;
         const touch = event.touches[0];
@@ -1087,7 +1088,7 @@
         if (restartButtonMesh) { scene.remove(restartButtonMesh); restartButtonMesh = null; }
         if (scrollUpButtonMesh) { scene.remove(scrollUpButtonMesh); scrollUpButtonMesh = null; }
         if (scrollDownButtonMesh) { scene.remove(scrollDownButtonMesh); scrollDownButtonMesh = null; }
-        answers.forEach(panel => scene.remove(panel));
+        answers.forEach(a => scene.remove(a));
         answers = [];
         correctCount = 0;
         wrongCount = 0;
@@ -1107,63 +1108,62 @@
 
       /***** 3) RUTINAS PARA LA VERSIÓN HTML (dispositivos no compatibles con AR) *****/
       function initHTML() {
-  // Habilitar el scroll en la página para la versión HTML
-  document.body.style.overflow = 'auto';
+        // Habilitar scroll para la versión HTML
+        document.body.style.overflow = 'auto';
+        htmlMode = true;
+        const gameContainer = document.createElement('div');
+        gameContainer.id = 'gameContainer';
+        document.body.appendChild(gameContainer);
 
-  htmlMode = true; // Activamos modo HTML
-  const gameContainer = document.createElement('div');
-  gameContainer.id = 'gameContainer';
-  document.body.appendChild(gameContainer);
+        const questionDiv = document.createElement('div');
+        questionDiv.id = 'question';
+        questionDiv.style.fontSize = '32px';
+        questionDiv.style.marginBottom = '20px';
+        gameContainer.appendChild(questionDiv);
 
-  const questionDiv = document.createElement('div');
-  questionDiv.id = 'question';
-  questionDiv.style.fontSize = '32px';
-  questionDiv.style.marginBottom = '20px';
-  gameContainer.appendChild(questionDiv);
+        const imageDiv = document.createElement('div');
+        imageDiv.id = 'questionImage';
+        gameContainer.appendChild(imageDiv);
 
-  const imageDiv = document.createElement('div');
-  imageDiv.id = 'questionImage';
-  gameContainer.appendChild(imageDiv);
+        const answersDiv = document.createElement('div');
+        answersDiv.id = 'answers';
+        answersDiv.style.display = 'flex';
+        answersDiv.style.flexWrap = 'wrap';
+        answersDiv.style.gap = '10px';
+        answersDiv.style.marginBottom = '20px';
+        answersDiv.style.justifyContent = 'center';
+        gameContainer.appendChild(answersDiv);
 
-  const answersDiv = document.createElement('div');
-  answersDiv.id = 'answers';
-  answersDiv.style.display = 'flex';
-  answersDiv.style.flexWrap = 'wrap';
-  answersDiv.style.gap = '10px';
-  answersDiv.style.marginBottom = '20px';
-  answersDiv.style.justifyContent = 'center';  // Centrado de respuestas
-  gameContainer.appendChild(answersDiv);
+        const countdownDiv = document.createElement('div');
+        countdownDiv.id = 'countdown';
+        countdownDiv.style.fontSize = '24px';
+        countdownDiv.style.marginBottom = '20px';
+        gameContainer.appendChild(countdownDiv);
 
-  const countdownDiv = document.createElement('div');
-  countdownDiv.id = 'countdown';
-  countdownDiv.style.fontSize = '24px';
-  countdownDiv.style.marginBottom = '20px';
-  gameContainer.appendChild(countdownDiv);
+        const scoreDiv = document.createElement('div');
+        scoreDiv.id = 'score';
+        scoreDiv.style.fontSize = '24px';
+        scoreDiv.style.marginBottom = '20px';
+        gameContainer.appendChild(scoreDiv);
 
-  const scoreDiv = document.createElement('div');
-  scoreDiv.id = 'score';
-  scoreDiv.style.fontSize = '24px';
-  scoreDiv.style.marginBottom = '20px';
-  gameContainer.appendChild(scoreDiv);
+        const leaderboardDiv = document.createElement('div');
+        leaderboardDiv.id = 'leaderboard';
+        leaderboardDiv.style.maxWidth = "180px";
+        leaderboardDiv.style.maxHeight = "120px";
+        leaderboardDiv.style.overflowY = "auto";
+        leaderboardDiv.style.backgroundColor = "#fff";
+        leaderboardDiv.style.color = "#000";
+        leaderboardDiv.style.fontSize = "12px";
+        leaderboardDiv.style.margin = "20px auto";
+        leaderboardDiv.style.border = "1px solid #000";
+        leaderboardDiv.style.borderRadius = "6px";
+        leaderboardDiv.style.padding = "4px";
+        gameContainer.appendChild(leaderboardDiv);
 
-  const leaderboardDiv = document.createElement('div');
-  leaderboardDiv.id = 'leaderboard';
-  leaderboardDiv.style.maxWidth = "180px";
-  leaderboardDiv.style.maxHeight = "120px";
-  leaderboardDiv.style.overflowY = "auto";
-  leaderboardDiv.style.backgroundColor = "#fff";
-  leaderboardDiv.style.color = "#000";
-  leaderboardDiv.style.fontSize = "12px";
-  leaderboardDiv.style.margin = "20px auto";  // Centrado de la tabla final
-  leaderboardDiv.style.border = "1px solid #000";
-  leaderboardDiv.style.borderRadius = "6px";
-  leaderboardDiv.style.padding = "4px";
-  gameContainer.appendChild(leaderboardDiv);
+        startHTMLGame();
+      }
 
-  startHTMLGame();
-}
-
-
+      let htmlCountdownInterval;
       function startHTMLGame() {
         correctCount = 0;
         wrongCount = 0;
@@ -1188,7 +1188,7 @@
         document.getElementById('question').innerText = questionText;
         const imageDiv = document.getElementById('questionImage');
         imageDiv.innerHTML = '';
-        const img = preloadedHTMLImages[questionNoteImage]; // Usamos la imagen precargada
+        const img = preloadedHTMLImages[questionNoteImage];
         img.style.maxWidth = "200px";
         img.style.marginBottom = "20px";
         imageDiv.appendChild(img);
@@ -1298,7 +1298,7 @@
         let querySnapshot;
         try {
           querySnapshot = await getDocs(qLeaderboard);
-        } catch (err) {
+        } catch(err) {
           console.error("Error consultando el leaderboard:", err);
           return;
         }
@@ -1333,7 +1333,7 @@
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
-        table.style.margin = '0 auto'; // Centrado de la tabla
+        table.style.margin = '0 auto';
         const headerRow = document.createElement('tr');
         ['Pos', 'Nombre', 'Puntos'].forEach(headerText=>{
           const th = document.createElement('th');
@@ -1392,7 +1392,7 @@
           const overlay = document.createElement('div');
           overlay.id = 'overlay';
           overlay.innerHTML =
-            '<img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:50px;">' +
+            '<img src="ARMusic2.jpeg" alt="ARMusic" style="margin-bottom:30px; margin-top:0px;">' +
             '<a href="https://www.youtube.com/@rafgim" target="_blank">© By Rafael Gimeno</a>' +
             '<div class="respuestas-container">' +
               '<label for="numAnswers">Respuestas:</label>' +
