@@ -568,6 +568,20 @@
         arButton.style.position = 'absolute';
         arButton.style.top = '615px';
         arButton.style.left = '100%';
+        arButton.style.removeProperty("width");
+  // También podrías hacer:
+  // arButton.style.width = "auto";
+
+  // Ajustar display en inline-block
+  arButton.style.display = "inline-block";
+
+  // Evitar salto de línea
+  arButton.style.whiteSpace = "nowrap";
+
+  // Opcional: remover margen/posicionamiento
+  arButton.style.removeProperty("left");
+  arButton.style.removeProperty("transform");
+
         setTimeout(() => {
   arButton.textContent = "INICIAR VERSIÓN AR";
 }, 100);
